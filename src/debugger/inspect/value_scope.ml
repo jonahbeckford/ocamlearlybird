@@ -11,7 +11,10 @@ class virtual scope_value =
     method! num_named = -1
   end
 
-[%%if ocaml_version >= (5, 2, 0)]
+(* [A]
+   In DkML, OCaml 4.14.2 has backported the closure change from OCaml 5.2.0.
+   See https://github.com/diskuv/dkml-compiler/blob/321d4ac16c74507e1cc34aa14677e7434fe976e2/src/p/ocaml-common-4_14-a06-linearclosures.md. *)
+[%%if ocaml_version >= (4, 14, 2)]
 let iter_compenv_heap f (compenv: Instruct.compilation_env) =
   match compenv.ce_closure with
   | Not_in_closure -> ()
