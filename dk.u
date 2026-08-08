@@ -1,0 +1,47 @@
+# NotHackwaly_Ocamlearlybird
+
+## Overview
+
+Builds the [ocamlearlybird](https://github.com/hackwaly/ocamlearlybird) OCaml
+debug adapter with the dk build system. See CLO.md for setup instructions.
+
+## License
+
+MIT
+
+## workspace
+
+  %% actual_version("2.4.2.313")
+  'actual_version'
+  '2.4.2.313'
+
+  %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml" }
+  \dk.import(type: "github-l2", library: "CommonsLang_OCaml",
+    version: "0.1.20260808230451",
+    checksum: (blake2b-256: "62749d3a1114cb86c9f2a1dd3acd987ec013bf505c402a7727710d0725c7a429",
+      sha256: "ee6218492c5d280d7357ee599cf1404aaf4ab428fff33992707d4a810a90f584",
+      sha1: "ddeff033d15e931ecc5ad1907a1e1be78d4633f2"))\;
+
+The workspace assets below are the inputs of the dk build: the dune project
+files, the `src/` tree, and the checked-in opam lock. After editing any of
+them run `./dk1 update --no-imports` to refresh the recorded checksums.
+
+### NotHackwaly_Ocamlearlybird.Apparatus@1.3.6
+
+  % unified.asset { name="DuneRoot", file="dune" }
+  \dk.asset(byteSize: "83", checksum: (sha256: "9a38938be58029f13436cf66d626b20b4fa14ecb32428efe123f93b36df96bac"))\;
+
+  % unified.asset { name="DuneWorkspace", file="dk-src/dune-workspace" }
+  \dk.asset(byteSize: "16", checksum: (sha256: "6dff6804e49533fc19ea7b0fbe988213a210fa7b9a2d5fd5f5b89eed6e380e53"))\;
+
+  % unified.asset { name="DuneProject", file="dune-project" }
+  \dk.asset(byteSize: "764", checksum: (sha256: "a10060cc55beacf53916592b7057dac5f5a6f43a793b5fdee4a4e30f50c59c83"))\;
+
+  % unified.asset { name="Opam", file="earlybird.opam" }
+  \dk.asset(byteSize: "1112", checksum: (sha256: "94b1fce5b684e798955e3a333c22a9e9df0a98a4bc38f2698bea1d29dd13931d"))\;
+
+  % unified.asset { name="Src", dir="src" }
+  \dk.asset(byteSize: "51536", checksum: (sha256: "226ce7b2b03fde9380737028440fca65ccb2327b0c80112bdd11d8f4e4564c4a"))\;
+
+  % unified.asset { name="Lock", file="dk.opam-lock.jsonc" }
+  \dk.asset(byteSize: "83477", checksum: (sha256: "359d6dfe052bbf07dfe08335c4a396d7580ea2fd6415a282dafc3b591f3da368"))\;
