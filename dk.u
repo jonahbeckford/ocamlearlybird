@@ -17,10 +17,10 @@ MIT
 
   %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml" }
   \dk.import(type: "github-l2", library: "CommonsLang_OCaml",
-    version: "0.1.20260808230451",
-    checksum: (blake2b-256: "62749d3a1114cb86c9f2a1dd3acd987ec013bf505c402a7727710d0725c7a429",
-      sha256: "ee6218492c5d280d7357ee599cf1404aaf4ab428fff33992707d4a810a90f584",
-      sha1: "ddeff033d15e931ecc5ad1907a1e1be78d4633f2"))\;
+    version: "0.1.20260809020600",
+    checksum: (blake2b-256: "9dd4c9c8077b76528c9d53db66ad192f850eca125f6876d1d60997ed015fc83a",
+      sha256: "46fcb1e1de73515092b76a27834612526877ef583977b0148d5ef023c73b1a0c",
+      sha1: "aed3a7f6195a1ba843826cb5e2f15496c04d7eb8"))\;
 
 The workspace assets below are the inputs of the dk build: the dune project
 files, the `src/` tree, and the checked-in opam lock. After editing any of
