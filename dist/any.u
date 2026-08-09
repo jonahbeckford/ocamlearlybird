@@ -1,0 +1,22 @@
+# Distribution for NotHackwaly_Ocamlearlybird
+
+## ocamlearlybird debug adapter
+
+`ocamlearlybird` is a debug adapter (DAP) for OCaml bytecode. It ships as the
+single native executable `bin/ocamlearlybird.exe`, built from source as a
+per-package content-addressed opam closure
+(`NotHackwaly_Ocamlearlybird.Ocamlearlybird.Closure`) and republished as one
+executable per slot.
+
+The object is `bin/ocamlearlybird.exe` compiled for the ABI. The `Release.target_abi`
+wildcard resolves to the slot the workflow passes as `--target-abi`, so this one
+script covers every slot: `Linux_x86_64`, `Linux_x86_64_musl`, `Linux_x86`,
+`Darwin_x86_64`, `Darwin_arm64`, `Windows_x86_64`, and `Windows_x86`.
+`Linux_x86_64_musl` is the fully static musl build that runs on musl distros such
+as alpine as well as every glibc distro.
+
+The per-slot `\dk.object` value-ids are harvested from the first CI run (the DkML
+pattern): the first `distribute` emits them as a `dk-patches/` diff that is
+applied back into this script.
+
+  $ get-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 -s Release.target_abi -d ${RUNTIME}/Ocamlearlybird-1.3.6

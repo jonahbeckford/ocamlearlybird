@@ -56,9 +56,6 @@ jobs:
           - runs-on: windows-latest
             distscript: dist/any.u
             target-abi: Windows_x86_64
-          - runs-on: windows-latest
-            distscript: dist/any.u
-            target-abi: Windows_arm64
 
     runs-on: ${{ matrix.runs-on }}
     container:
@@ -99,7 +96,8 @@ jobs:
             #   (the built-in dk trust root) and your own package, list them so
             #   CI can accept their producer keys (dk0 denies unknown producer
             #   keys by default and CI has no terminal to accept them):
-            # trust-packages: 'CommonsBase_GNU CommonsBase_Win32'
+            #   This workspace's only direct import is CommonsLang_OCaml.
+            trust-packages: 'CommonsLang_OCaml'
             #   Use MlFront HEAD when CI build is not from a tag
             experimental-mlfront-ref: ${{ github.ref_type != 'tag' && 'HEAD' }}
             #   Uncomment when testing MlFront
