@@ -1,0 +1,140 @@
+name: NotHackwaly_Ocamlearlybird@1.3.x
+on:
+  push:
+    tags:
+      - '1.3.*' # secrets are tied to version 1.3
+  workflow_dispatch: # allow manual triggering from GitHub page
+
+jobs:
+  distribute:
+    # The secrets created by `./dk0 prepare-version --ci github VERSION`
+    # are tied to this environment only.
+    environment: dk-distribution
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+            # curl and build-essential are part of ubuntu-24.04 CI runner, so test with:
+            #   docker run -v .:/work --workdir /work -it ubuntu:24.04 bash -c "apt update && apt install -y curl build-essential && sh ./dk0 distribute --actual-in-place --library NotHackwaly_Ocamlearlybird@1.3.99 part1 dist/any.u"
+            #   docker run -v .:/work --workdir /work -it quay.io/pypa/manylinux_2_28_x86_64:2026.07.10-1 sh ./dk0 distribute --actual-in-place --library NotHackwaly_Ocamlearlybird@1.3.99 part1 dist/any.u
+          - runs-on: ubuntu-latest
+            distscript: dist/any.u
+            #   RedHat only distributes date versioned manylinux images for a few months.
+            #   https://quay.io/repository/pypa/manylinux_2_28_x86_64?tab=tags&tag=latest to
+            #   get a new version.
+            #   Also, NodeJS 24 is required for GitHub Actions, but NodeJS 24 does not support 32-bit Linux.
+            #   So the host must be 64-bit Linux
+            image: quay.io/pypa/manylinux_2_28_x86_64:2026.07.10-1 # glibc 2.28 + gcc 14.2.1: old glibc is highly compatible and works with Node v24.14.0; system gcc will not be needed once GCC bootstrapped in dk0.
+            target-abi: Linux_x86
+          - runs-on: ubuntu-latest
+            distscript: dist/any.u
+            #   RedHat only distributes date versioned manylinux images for a few
+            #   months.
+            #   https://quay.io/repository/pypa/manylinux_2_28_x86_64?tab=tags&tag=latest to
+            #   get a new version.
+            image: quay.io/pypa/manylinux_2_28_x86_64:2026.07.10-1 # glibc 2.28 + gcc 14.2.1: old glibc is highly compatible and works with Node v24.14.0; system gcc will not be needed once GCC bootstrapped in dk0.
+            target-abi: Linux_x86_64
+          - runs-on: ubuntu-latest
+            distscript: dist/any.u
+            #   The musl target builds on the same glibc manylinux container
+            #   (execution ABI stays Linux_x86_64); the target slot's musl
+            #   toolchain comes from the package's own values.
+            image: quay.io/pypa/manylinux_2_28_x86_64:2026.07.10-1 # glibc 2.28 + gcc 14.2.1: old glibc is highly compatible and works with Node v24.14.0; system gcc will not be needed once GCC bootstrapped in dk0.
+            target-abi: Linux_x86_64_musl
+          - runs-on: macos-latest
+            distscript: dist/any.u
+            execution-abi: Darwin_arm64
+            target-abi: Darwin_arm64
+          - runs-on: macos-latest
+            distscript: dist/any.u
+            execution-abi: Darwin_arm64
+            target-abi: Darwin_x86_64
+          - runs-on: windows-latest
+            distscript: dist/any.u
+            target-abi: Windows_x86
+          - runs-on: windows-latest
+            distscript: dist/any.u
+            target-abi: Windows_x86_64
+          - runs-on: windows-latest
+            distscript: dist/any.u
+            target-abi: Windows_arm64
+
+    runs-on: ${{ matrix.runs-on }}
+    container:
+      image: ${{ matrix.image }}
+
+    steps:
+      - name: Harden Runner # Optional but recommended
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with: { egress-policy: audit }
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Prepare static libc for the manylinux container
+        if: ${{ matrix.image }}
+        run: dnf install -y glibc-static glibc-static.i686 glibc-devel.i686 libgcc.i686
+
+      - name: Distribute Modules
+        uses: diskuv/dk-distribute@v3
+        with:
+            pubkey: ${{ secrets.distribute_1_3_pubkey }}
+            seckey: ${{ secrets.distribute_1_3_seckey }}
+            options: -nosysinc
+            store: release
+            distscript: ${{ matrix.distscript }}
+            execution-abi: ${{ matrix.execution-abi }}
+            target-abi: ${{ matrix.target-abi }}
+            #   R8 resumable CI (requires diskuv/dk-distribute >= v4, which
+            #   forwards these to `dk0 distribute --allow-partial --deadline`).
+            #   When the job runs out of time, dk0 publishes the objects it
+            #   finished as a PRERELEASE (a `dk-dist/PARTIAL` marker) instead
+            #   of failing the workflow with nothing published; a later run
+            #   restores that prerelease, resumes, and publishes a full
+            #   release. Keep deadline-minutes comfortably under the job's
+            #   timeout-minutes so the runner stops itself first.
+            # allow-partial: true
+            # deadline-minutes: 300
+            #   If your workspace imports packages other than CommonsBase_Std
+            #   (the built-in dk trust root) and your own package, list them so
+            #   CI can accept their producer keys (dk0 denies unknown producer
+            #   keys by default and CI has no terminal to accept them):
+            # trust-packages: 'CommonsBase_GNU CommonsBase_Win32'
+            #   Use MlFront HEAD when CI build is not from a tag
+            experimental-mlfront-ref: ${{ github.ref_type != 'tag' && 'HEAD' }}
+            #   Uncomment when testing MlFront
+            # experimental-mlfront-ref: HEAD
+
+  combine:
+    needs: distribute
+    # The secrets created by `./dk0 prepare-version --ci github VERSION`
+    # are tied to this environment only. The combine job uses them to sign
+    # the combined distribution build payload.
+    environment: dk-distribution
+    permissions:
+      contents: write # for action-gh-release
+      id-token: write # for actions/attest-build-provenance
+      attestations: write # for actions/attest-build-provenance
+      #   required but does not work in `act`! bug: https://github.com/nektos/act/issues/6025
+      artifact-metadata: write # for actions/attest-build-provenance
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner # Optional but recommended
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with: { egress-policy: audit }
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Combine Modules
+        uses: diskuv/dk-distribute/combine@v3
+        with:
+            pubkey: ${{ secrets.distribute_1_3_pubkey }}
+            seckey: ${{ secrets.distribute_1_3_seckey }}
+
+      # Attests the distribution, publishes the sigstore bundle for values.json
+      # as a release asset, and creates the release. A consumer then fetches
+      # that bundle beside values.json with a plain download, so importing this
+      # release needs no GitHub API token.
+      - name: Attest and Release
+        uses: diskuv/dk-distribute/attest-release@v3
