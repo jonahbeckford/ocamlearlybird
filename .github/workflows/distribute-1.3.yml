@@ -75,6 +75,11 @@ jobs:
       - name: Distribute Modules
         uses: diskuv/dk-distribute@v3
         with:
+            #   The repo name (ocamlearlybird) is not a valid dk library id, so the
+            #   default `id` (github repo without owner) cannot be used. Pin it to
+            #   the real library id; the version tracks the pushed tag. (dk-distribute@v3
+            #   names this input `id`, not `library`.)
+            id: NotHackwaly_Ocamlearlybird@${{ github.ref_name }}
             pubkey: ${{ secrets.distribute_1_3_pubkey }}
             seckey: ${{ secrets.distribute_1_3_seckey }}
             options: -nosysinc
@@ -127,6 +132,9 @@ jobs:
       - name: Combine Modules
         uses: diskuv/dk-distribute/combine@v3
         with:
+            #   Same library-id pin as the distribute job (combine defaults its `id`
+            #   to the repo name too, which is not a valid dk library id here).
+            id: NotHackwaly_Ocamlearlybird@${{ github.ref_name }}
             pubkey: ${{ secrets.distribute_1_3_pubkey }}
             seckey: ${{ secrets.distribute_1_3_seckey }}
 
