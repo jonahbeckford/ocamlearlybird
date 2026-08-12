@@ -35,13 +35,14 @@ jobs:
             #   get a new version.
             image: quay.io/pypa/manylinux_2_28_x86_64:2026.07.10-1 # glibc 2.28 + gcc 14.2.1: old glibc is highly compatible and works with Node v24.14.0; system gcc will not be needed once GCC bootstrapped in dk0.
             target-abi: Linux_x86_64
-          - runs-on: ubuntu-latest
-            distscript: dist/any.u
-            #   The musl target builds on the same glibc manylinux container
-            #   (execution ABI stays Linux_x86_64); the target slot's musl
-            #   toolchain comes from the package's own values.
-            image: quay.io/pypa/manylinux_2_28_x86_64:2026.07.10-1 # glibc 2.28 + gcc 14.2.1: old glibc is highly compatible and works with Node v24.14.0; system gcc will not be needed once GCC bootstrapped in dk0.
-            target-abi: Linux_x86_64_musl
+            # Linux_x86_64_musl is deliberately absent. The musl DkML compiler
+            # binaries are musl-dynamic and need /lib/ld-musl-x86_64.so.1, which
+            # only exists inside CommonsLang_OCaml's own CI container, so every
+            # package built at the musl target ABI dies in OpamBuildWrapper with
+            # exit 127 (cppo is simply the first one to get there). Blocked on
+            # dkpkg/CommonsLang_OCaml#2 (absolute gcc-toolset-14 paths baked into
+            # ocamlopt -config) and #3 (non-PIE runtime). Restore this slot once
+            # those are closed and the musl toolchain runs on a consumer host.
           - runs-on: macos-latest
             distscript: dist/any.u
             execution-abi: Darwin_arm64
