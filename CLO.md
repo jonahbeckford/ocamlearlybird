@@ -313,6 +313,27 @@ adapter, which needs an OpamBuild rule that parameterizes the toolchain rather
 than hardwiring 4.14.3. The **High Performance** path (PR 2) is where the 5.5
 route is exercised in CI.
 
+### Why `dap` is held at `>= 1.0.6`, not upstream's `>= 1.1.0`
+
+Upstream ocamlearlybird bumped `earlybird.opam` / `dune-project` to `dap {>= "1.1.0"}`
+(the "dap 1.71 spec" change) and set the RunInTerminal field
+`args_can_be_interpreted_by_shell`. **Do not re-bump `dap` here** while the build
+targets the 4.14.3 toolchain: `dap` 1.1.0's dependency closure does not solve
+against it. Solving the closure (with `Solve@1.1.5`, which already filters
+test-only edges) gives, per pinned OCaml:
+
+- `ocaml 4.14.3` → no solution, closure requires `ocaml (< 4.14.3 | >= 5.0)`;
+- `ocaml 5.5.0`  → no solution, closure requires `ocaml < 5.4`;
+- `dap 1.1.0` pinned on `ocaml 4.14.3` → no dap satisfies.
+
+So the feasible OCaml window is `< 4.14.3` **or** `[5.0, 5.4)`, and
+`CommonsLang_OCaml` ships Base objects only at 4.14.3 / 5.4.1 / 5.5.0 — none in
+that window. The `args_can_be_interpreted_by_shell` field is DAP-optional and was
+set to `None` (the absent/default behaviour), so keeping `dap` at 1.0.6 and
+dropping that one field is behaviour-neutral. Re-bumping `dap` (to get the 1.71
+spec features) is gated on **both** a 5.0–5.3 `Base` toolchain object (not yet
+shipped) **and** the parameterized OpamBuild rule above.
+
 ## Suggested dk1 quickstart improvements
 
 Dogfooding the adoption produced concrete, actionable feedback for dk:
