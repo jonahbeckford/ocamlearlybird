@@ -129,7 +129,7 @@ for the full rationale of each line — and **solve** the dependency closure int
 checked-in lock:
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.5 \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.6 \
   'roots[]=earlybird' 'locals[]=earlybird' opam=t/opam.exe
 ```
 
@@ -140,13 +140,13 @@ URLs + checksums, dependency edges, raw opam build/install fields). Measured
 **3. Generate the per-package build driver** from the lock:
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.5 \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.6 \
   lock=dk.opam-lock.jsonc \
   out=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.Closure.values.jsonc \
   root=earlybird \
   formid=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Closure@1.3.6 \
   pkgpath=NotHackwaly_Ocamlearlybird.Ocamlearlybird version=1.3.6 \
-  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.14 \
+  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.16 \
   localsrc=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Src@1.3.6 \
   locksrcpath=./dk-opam-lock.jsonc parallel=t
 ```
@@ -345,7 +345,7 @@ Dogfooding the adoption produced concrete, actionable feedback for dk:
    should pin to the current tag (or omit the version and resolve it).
 2. **Its `next_steps` text is obsolete.** It prints a `dk0 get-object
    CommonsLang_OCaml.Dk.OpamLock.Solve -s Release.Agnostic -f dk.opam-lock.jsonc`
-   invocation that no longer matches the current `Solve@1.1.0` dialog (which needs
+   invocation that no longer matches the current `Solve@1.1.6` dialog (which needs
    `roots[]=`, a pins file, and `local_opam_dir=`/`opam=`).
 3. **Scaffold `dk-opam-pins.txt`.** The recipe schema already supports
    `seed_files`; it could drop a commented pins template so new adopters see the
