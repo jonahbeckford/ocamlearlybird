@@ -313,14 +313,7 @@
       "depends": [
         "ocaml",
         "base-unix",
-        "base-threads",
-        "lwt",
-        "csexp",
-        "menhir",
-        "ocamlfind",
-        "ppx_expect",
-        "ppx_inline_test",
-        "ppxlib"
+        "base-threads"
       ],
       "depends_raw": "(\"ocaml\" {>= \"4.14\"} |\n (\"ocaml\" {>= \"4.02\" & < \"4.14~~\"} & \"ocamlfind-secondary\" &\n  \"ocaml-secondary-compiler\" {>= \"4.14\"}))\n\"base-unix\"\n\"base-threads\"\n\"lwt\" {with-dev-setup & os != \"win32\"}\n\"cinaps\" {with-dev-setup}\n\"csexp\" {with-dev-setup & >= \"1.3.0\"}\n\"js_of_ocaml\" {with-dev-setup & >= \"6.1.0\" & os != \"win32\"}\n\"js_of_ocaml-compiler\" {with-dev-setup & >= \"6.1.0\" & os != \"win32\"}\n\"mdx\" {with-dev-setup & >= \"2.3.0\" & os != \"win32\"}\n\"menhir\" {with-dev-setup & os != \"win32\"}\n\"ocamlfind\" {with-dev-setup & os != \"win32\"}\n\"odoc\" {with-dev-setup & >= \"2.4.0\" & os != \"win32\"}\n\"ppx_expect\" {with-dev-setup & >= \"v0.17\" & os != \"win32\"}\n\"spawn\" {with-dev-setup}\n\"ppx_inline_test\" {with-dev-setup & os != \"win32\"}\n\"ppxlib\" {with-dev-setup & >= \"0.37.0\" & os != \"win32\"}\n\"ctypes\" {with-dev-setup & os != \"win32\"}\n\"utop\" {with-dev-setup & >= \"2.6.0\" & os != \"win32\"}\n\"melange\" {with-dev-setup & >= \"5.1.0-51\" & os != \"win32\"}\n\"uutf\" {with-dev-setup}\n\"conf-git-daemon\" {with-test}",
       "install": null,
@@ -887,9 +880,7 @@
     "ocamlbuild.0.16.1": {
       "build": "[\n  make\n  \"-f\"\n  \"configure.make\"\n  \"all\"\n  \"OCAMLBUILD_PREFIX=%{prefix}%\"\n  \"OCAMLBUILD_BINDIR=%{bin}%\"\n  \"OCAMLBUILD_LIBDIR=%{lib}%\"\n  \"OCAMLBUILD_MANDIR=%{man}%\"\n  \"OCAML_NATIVE=%{ocaml:native}%\"\n  \"OCAML_NATIVE_TOOLS=%{ocaml:native}%\"\n]\n[make \"check-if-preinstalled\" \"all\" \"opam-install\"]",
       "depends": [
-        "ocaml",
-        "ocamlfind",
-        "menhirLib"
+        "ocaml"
       ],
       "depends_raw": "\"ocaml\" {>= \"4.08\"} \"ocamlfind\" {with-test} \"menhirLib\" {with-test}",
       "install": null,
@@ -1384,9 +1375,7 @@
         "ocaml-compiler-libs",
         "ppx_derivers",
         "sexplib0",
-        "stdlib-shims",
-        "ocamlfind",
-        "re"
+        "stdlib-shims"
       ],
       "depends_raw": "\"dune\" {>= \"3.8\"}\n\"ocaml\" {>= \"4.08.0\" & < \"5.4.0\"}\n\"ocaml-compiler-libs\" {>= \"v0.11.0\"}\n\"ppx_derivers\" {>= \"1.0\"}\n\"sexplib0\" {>= \"v0.12\"}\n\"sexplib0\" {with-test & >= \"v0.15\"}\n\"stdlib-shims\"\n\"ocamlfind\" {with-test}\n\"re\" {with-test & >= \"1.9.0\"}\n\"cinaps\" {with-test & >= \"v0.12.1\"}\n\"ocamlformat\" {with-dev-setup & = \"0.26.2\"}\n\"odoc\" {with-doc}",
       "install": null,
@@ -1427,8 +1416,7 @@
       "build": "[\"dune\" \"subst\"] {dev}\n[\n  \"dune\"\n  \"build\"\n  \"-p\"\n  name\n  \"-j\"\n  jobs\n  \"@install\"\n  \"@runtest\" {with-test}\n  \"@doc\" {with-doc}\n]",
       "depends": [
         "dune",
-        "ocaml",
-        "ppx_expect"
+        "ocaml"
       ],
       "depends_raw": "\"dune\" {>= \"3.17\"}\n\"ocaml\" {>= \"4.13.0\"}\n\"ppx_expect\" {with-test}\n\"ounit2\" {with-test}\n\"js_of_ocaml\" {with-test}\n\"conf-npm\" {with-test}\n\"odoc\" {with-doc}",
       "install": null,

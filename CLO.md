@@ -78,8 +78,8 @@ vendored `./dk1` launcher, which self-installs the pinned version on first run.)
 - everything after `--` is passed to the adapter.
 
 The first run builds ocamlearlybird's dependency closure (measured cold build:
-**⟨MEASURE cold-build⟩**). Subsequent runs are served entirely from the local
-object cache (measured warm run: **⟨MEASURE warm-run⟩**).
+**~22 m 35 s**). Subsequent runs are served entirely from the local
+object cache (measured warm run: **~32 s**).
 
 > **Linux host prerequisites.** The toolchain objects are built with Diskuv's
 > relocatable DkML compiler, which currently expects a GCC toolset at
@@ -129,7 +129,7 @@ for the full rationale of each line — and **solve** the dependency closure int
 checked-in lock:
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.0 \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.5 \
   'roots[]=earlybird' 'locals[]=earlybird' opam=t/opam.exe
 ```
 
@@ -140,13 +140,13 @@ URLs + checksums, dependency edges, raw opam build/install fields). Measured
 **3. Generate the per-package build driver** from the lock:
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.0 \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.5 \
   lock=dk.opam-lock.jsonc \
   out=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.Closure.values.jsonc \
   root=earlybird \
   formid=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Closure@1.3.6 \
   pkgpath=NotHackwaly_Ocamlearlybird.Ocamlearlybird version=1.3.6 \
-  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.6 \
+  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.14 \
   localsrc=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Src@1.3.6 \
   locksrcpath=./dk-opam-lock.jsonc parallel=t
 ```
@@ -250,8 +250,8 @@ the localized-source object and the local `earlybird` package object — while e
 external package object stays cached and is reused untouched.
 
 Measured edit-one-file rebuild (edit a log string in `src/main/main.ml`,
-`dk1 update --no-imports`, rebuild): **⟨MEASURE edit-rebuild⟩** — versus the cold
-build of **⟨MEASURE cold-build⟩**.
+`dk1 update --no-imports`, rebuild): **~3 m 15 s** — versus the cold
+build of **~22 m 35 s**.
 
 ## Cached vs rebuilt opam packages
 
@@ -267,7 +267,7 @@ all lazily range-fetched from published `dkpkg` releases. This is the "partial
 caching from an arbitrary CI-backed dk package" that makes Quick Setup fast.
 
 **Built from source locally (once, then cached):** ocamlearlybird's opam
-dependency closure — **⟨MEASURE closure-count⟩** packages including lwt, dap,
+dependency closure — **53** packages including lwt, dap,
 menhir, ppxlib, ppx_deriving_yojson, sexplib/num, yojson — plus the in-tree
 `earlybird` package. Each becomes its own cached object, so the second build (and
 every incremental build after an edit) reuses all of them.
