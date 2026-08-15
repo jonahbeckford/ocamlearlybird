@@ -179,14 +179,14 @@ URLs + checksums, dependency edges, raw opam build/install fields). Measured
   root=earlybird \
   formid=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Closure@1.3.6 \
   pkgpath=NotHackwaly_Ocamlearlybird.Ocamlearlybird version=1.3.6 \
-  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.16 \
+  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.17 \
   localsrc=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Src@1.3.6 \
   locksrcpath=./dk-opam-lock.jsonc parallel=t
 ```
 
 `GenerateDriver@1.1.6` builds the host tools (`ocamlfind`, `ocamlbuild`) at
 `Release.execution_abi` instead of the target ABI, so a cross slot gets tools
-that run on the build machine. Keep both it and `F_BuildLockedPackage@1.0.16`
+that run on the build machine. Keep both it and `F_BuildLockedPackage@1.0.17`
 at the newest versions the imported CommonsLang_OCaml release ships.
 
 Every opam package in the closure becomes its **own** content-addressed dk object
