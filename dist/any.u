@@ -26,6 +26,7 @@ applied back into this script. These are content-addressed and reproducible
   \test(pass)
   \dk.object(abi: "Release.Darwin_arm64", value-id: "omtfpbdektkgath7i4swzhvzc5fxtderwphdlegrg4bxta5v5sl4q")
   \dk.object(abi: "Release.Darwin_x86_64", value-id: "oqjlu7ktcozr4n6hhwc2bdjny5or4kuw3jrewu7sry4ffh3xuqa7q")
+  \dk.object(abi: "Release.Linux_x86", value-id: "oedoj4l65yoqqedzwg63ixxeq5kud4vtq5pjzcvvfr7afaxpoqqbq")
   \dk.object(abi: "Release.Linux_x86_64", value-id: "ok4emdyssvgza2bkzlrdkcyi3faiae7d7p3bma6csg5a7r57ijjja")
   \dk.object(abi: "Release.Windows_x86", value-id: "oowf7ga5kkh7wjpeyugumxf4sj2jldzsjempeegynrtgwu2hfwgbq")
   \dk.object(abi: "Release.Windows_x86_64", value-id: "o5g7qcdhtvyxw6oa2dc6qj6ecpqf3vsvv7ob6zufs4kiwijfzi4uq")\;
