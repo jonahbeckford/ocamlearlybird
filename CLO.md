@@ -146,7 +146,7 @@ URLs + checksums, dependency edges, raw opam build/install fields). Measured
   root=earlybird \
   formid=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Closure@1.3.6 \
   pkgpath=NotHackwaly_Ocamlearlybird.Ocamlearlybird version=1.3.6 \
-  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.16 \
+  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.17 \
   localsrc=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Src@1.3.6 \
   locksrcpath=./dk-opam-lock.jsonc parallel=t
 ```
