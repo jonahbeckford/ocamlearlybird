@@ -5,6 +5,9 @@ name: measure-restore
 # printing per-phase wall-clock. Re-run from the Actions tab to re-measure.
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'measure-*'
 
 jobs:
   measure:
