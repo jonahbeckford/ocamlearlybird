@@ -92,7 +92,17 @@ jobs:
             pubkey: ${{ secrets.distribute_1_3_pubkey }}
             seckey: ${{ secrets.distribute_1_3_seckey }}
             options: -nosysinc
-            store: release
+            #   Cross slots (target-abi != execution-abi) are pinned to
+            #   store: none. dk object value-ids do not currently include the
+            #   resolved target ABI, so a store restored from a previous
+            #   release can serve host-ABI content under ids that match the
+            #   cross slot's -- the mechanism behind 1.3.202608152325's
+            #   mislabeled 64-bit "Linux_x86" binary (a restore-contamination
+            #   false green) and the 1.3.202608160911 lwt 32/64 link failure.
+            #   Cold cross builds are verified correct (ELF 32-bit end to end).
+            #   Revert to a plain `store: release` once the dk engine includes
+            #   the resolved target ABI in cross-built object value-ids.
+            store: ${{ (matrix.target-abi == 'Linux_x86' || matrix.target-abi == 'Windows_x86' || matrix.target-abi == 'Darwin_x86_64') && 'none' || 'release' }}
             distscript: ${{ matrix.distscript }}
             execution-abi: ${{ matrix.execution-abi }}
             target-abi: ${{ matrix.target-abi }}
@@ -148,6 +158,75 @@ jobs:
             id: NotHackwaly_Ocamlearlybird@${{ github.ref_name }}
             pubkey: ${{ secrets.distribute_1_3_pubkey }}
             seckey: ${{ secrets.distribute_1_3_seckey }}
+
+      # ---- Guard: the ocamlearlybird.exe in every slot's store must match its ABI ----
+      # Release 1.3.202608152325 shipped a 64-bit x86-64 binary inside the
+      # "Linux_x86" store (restore contamination under ABI-invariant value-ids);
+      # its value-id matched, so nothing failed until a 32-bit host ran it. The
+      # binaries here live nested (per-slot valuestore zip -> object zip ->
+      # bin/ocamlearlybird.exe), so extract before `file`. Modeled on
+      # CommonsBase_Dk's flat-binary arch guard. Fails loud if NO store is
+      # found (a layout change must break this guard, not skip it).
+      - name: Verify ocamlearlybird machine arch matches each ABI
+        shell: bash
+        run: |
+          set -uo pipefail
+          expected() {
+            case "$1" in
+              Linux_x86)      echo 'ELF 32-bit.*(Intel 80386|Intel i386|i386)' ;;
+              Linux_x86_64)   echo 'ELF 64-bit.*x86-64' ;;
+              Darwin_arm64)   echo 'Mach-O 64-bit.*arm64' ;;
+              Darwin_x86_64)  echo 'Mach-O 64-bit.*x86_64' ;;
+              Windows_x86)    echo 'PE32 executable.*(80386|Intel i386)' ;;
+              Windows_x86_64) echo 'PE32\+ executable.*(x86-64|x86_64)' ;;
+              *)              echo '' ;;
+            esac
+          }
+          fail=0 seen=0
+          for zipf in dk-dist/NotHackwaly_Ocamlearlybird-any-*.package.valuestore.zip; do
+            [ -e "$zipf" ] || continue
+            abi=$(basename "$zipf" | sed -e 's/^NotHackwaly_Ocamlearlybird-any-//' -e 's/\.package\.valuestore\.zip$//')
+            pat=$(expected "$abi")
+            if [ -z "$pat" ]; then echo "FAIL unknown ABI in asset name: $zipf"; fail=1; continue; fi
+            exe=$(python3 - "$zipf" <<'PY'
+          import io, sys, zipfile
+          z = zipfile.ZipFile(sys.argv[1])
+          for n in z.namelist():
+              raw = z.read(n)
+              if not raw.startswith(b'PK'):
+                  continue
+              try:
+                  inner = zipfile.ZipFile(io.BytesIO(raw))
+              except zipfile.BadZipFile:
+                  continue
+              for m in inner.namelist():
+                  if m.endswith('ocamlearlybird.exe'):
+                      out = 'arch-guard-extracted.exe'
+                      with open(out, 'wb') as f:
+                          f.write(inner.read(m))
+                      print(out)
+                      sys.exit(0)
+          sys.exit(1)
+          PY
+            ) || { echo "FAIL $zipf ($abi): no ocamlearlybird.exe found in any object"; fail=1; continue; }
+            seen=1
+            desc=$(file -b "$exe")
+            if printf '%s\n' "$desc" | grep -Eq "$pat"; then
+              echo "ok   $zipf ($abi): $desc"
+            else
+              echo "FAIL $zipf ($abi): expected /$pat/, got: $desc"
+              fail=1
+            fi
+          done
+          if [ "$seen" = 0 ]; then
+            echo "::error::arch guard found NO per-slot valuestore under dk-dist/ (layout changed?)"
+            exit 1
+          fi
+          if [ "$fail" != 0 ]; then
+            echo "::error::An ocamlearlybird binary's machine arch does not match its ABI slot (see FAIL lines)."
+            exit 1
+          fi
+          echo "All slot binaries match their ABI."
 
       # Attests the distribution, publishes the sigstore bundle for values.json
       # as a release asset, and creates the release. A consumer then fetches
