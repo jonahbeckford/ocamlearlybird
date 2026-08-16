@@ -153,7 +153,7 @@ for the full rationale of each line, and **solve** the dependency closure into a
 checked-in lock:
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.6 \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.7 \
   'roots[]=earlybird' 'locals[]=earlybird' opam=t/opam.exe
 ```
 
@@ -173,7 +173,7 @@ URLs + checksums, dependency edges, raw opam build/install fields). Measured
 **3. Generate the per-package build driver** from the lock:
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.6 \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.7 \
   lock=dk.opam-lock.jsonc \
   out=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.Closure.values.jsonc \
   root=earlybird \
@@ -184,10 +184,15 @@ URLs + checksums, dependency edges, raw opam build/install fields). Measured
   locksrcpath=./dk-opam-lock.jsonc parallel=t
 ```
 
-`GenerateDriver@1.1.6` builds the host tools (`ocamlfind`, `ocamlbuild`) at
-`Release.execution_abi` instead of the target ABI, so a cross slot gets tools
-that run on the build machine. Keep both it and `F_BuildLockedPackage@1.0.17`
-at the newest versions the imported CommonsLang_OCaml release ships.
+`GenerateDriver@1.1.7` builds the host tools (`ocamlfind`, `ocamlbuild`) at
+`Release.target_abi` by default, so on a cross slot the host can emulate
+(WOW64/Rosetta/multilib) their findlib metadata matches the target and the tool
+still runs under emulation. This is what the earlier hand edit (commit 57fd802)
+did; @1.1.7 makes it the generator default, so a regenerated driver keeps it
+with no hand edit. A matrix with a host-unemulatable cross slot passes
+`hosttoolabi=Release.execution_abi` to restore the host-ABI pin. Keep both
+GenerateDriver and `F_BuildLockedPackage@1.0.17` at the newest versions the
+imported CommonsLang_OCaml release ships.
 
 Every opam package in the closure becomes its **own** content-addressed dk object
 built in topological order; `parallel=t` lets dk1 build independent packages
@@ -498,7 +503,7 @@ Dogfooding the adoption produced concrete, actionable feedback for dk:
    should pin to the current tag (or omit the version and resolve it).
 2. **Its `next_steps` text is obsolete.** It prints a `dk0 get-object
    CommonsLang_OCaml.Dk.OpamLock.Solve -s Release.Agnostic -f dk.opam-lock.jsonc`
-   invocation that no longer matches the current `Solve@1.1.6` dialog (which needs
+   invocation that no longer matches the current `Solve@1.1.7` dialog (which needs
    `roots[]=`, a pins file, and `local_opam_dir=`/`opam=`).
 3. **Scaffold `dk-opam-pins.txt`.** The recipe schema already supports
    `seed_files`; it could drop a commented pins template so new adopters see the
