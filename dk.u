@@ -46,9 +46,9 @@ them run `./dk1 update --no-imports` to refresh the recorded checksums.
       sha256: "f932d71bd74c858f40a5ed4a0235434197eed167e17a652d04dfebd81153ec7c",
       sha1: "690f1e81f6ab694a67fcefe4fc393821420b09d6"))\;
 
-  %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml", tag="0.1.20260816084032"  }
+  %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml", tag="0.1.20260820083108"  }
   \dk.import(type: "github-l2", library: "CommonsLang_OCaml",
-    version: "0.1.20260816084032",
-    checksum: (blake2b-256: "19044c6e7d54b66b31d522a3d8918aa5a2ea4ea58fa20f4286c4f00b8fa92d35",
-      sha256: "f6ed9d2fe3eddd1dc49823741279bc391d38ccfb2c8a0faf474dfe9a8f766adf",
-      sha1: "cd2345b142bd35f2d1e747093bb019e546e1e4b4"))\;
+    version: "0.1.20260820083108",
+    checksum: (blake2b-256: "004a5d6bee0f27bf708bc9c82e9c4d22b103a6cc3b2062aec1cb505d7cda8ce9",
+      sha256: "908c3dd67c9f8a0e2f2fe17007d72b05992c6ff51113abd5194e0a3e0705b885",
+      sha1: "d87492eca903ef198b3f8573bd89d03f8eafe0ad"))\;
