@@ -81,13 +81,13 @@ The first run builds ocamlearlybird's dependency closure (measured cold build:
 **~22 m 35 s**). Subsequent runs are served entirely from the local
 object cache (measured warm run: **~32 s**).
 
-> **Linux host prerequisites.** The toolchain objects are built with Diskuv's
-> relocatable DkML compiler, which currently expects a GCC toolset at
-> `/opt/rh/gcc-toolset-14/...` and a non-PIE default. On a stock Ubuntu host that
-> is not present, so the linker/assembler must be made discoverable and PIE
-> disabled. This is a portability gap in the DkML toolchain objects (filed
-> upstream as Diskuv issues), not in ocamlearlybird; see *Cached vs rebuilt opam
-> packages* for the exact shim used in this container.
+> **Linux host prerequisites.** Quick Setup compiles native code from source, so
+> the host needs a C toolchain on `PATH`: on Ubuntu or Debian that is `curl` and
+> `build-essential`. As of `CommonsLang_OCaml` release `0.1.20260820083108` the
+> DkML toolchain objects bake bare `PATH`-resolved tool names (`gcc`, `as`) and
+> ship a PIC runtime, so native compilation and linking succeed on stock
+> PIE-default hosts (Ubuntu 24.04, Debian 12+) with the system toolchain and no
+> further setup.
 
 ### Quick Setup for Maintainers
 
@@ -281,17 +281,6 @@ toolchain objects but yields **zero** hits on the per-package `Pkg.*` objects.
 The mechanism that *does* pay off for a project's own dependency objects is
 restoring against **its own** prior releases — which is exactly what the High
 Performance CI path sets up.
-
-> **Host-prerequisite shim used in this container.** Stock Ubuntu 24.04 lacks the
-> `/opt/rh/gcc-toolset-14` layout the DkML toolchain objects expect, and defaults
-> to PIE while the DkML runtime needs `-no-pie`. The shim (not committed; a host
-> concern, filed upstream against Diskuv) symlinks the system binutils/gcc into
-> the expected toolset path and wraps `gcc` with `-fno-PIE -no-pie`:
-> ```sh
-> D=/opt/rh/gcc-toolset-14/root/usr/bin; mkdir -p "$D"
-> for t in g++ cc as ld ar ranlib nm objdump objcopy strip cpp; do ln -sf /usr/bin/$t "$D/$t"; done
-> printf '#!/bin/sh\nexec /usr/bin/gcc -fno-PIE -no-pie "$@"\n' > "$D/gcc"; chmod +x "$D/gcc"
-> ```
 
 ## DkML 4.14 vs OCaml (Base) 5.5
 
