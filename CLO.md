@@ -105,13 +105,13 @@ The first run builds ocamlearlybird's dependency closure (measured cold build:
 **~22 m 35 s**). Subsequent runs are served entirely from the local
 object cache (measured warm run: **~32 s**).
 
-> **Linux host prerequisites.** The toolchain objects are built with Diskuv's
-> relocatable DkML compiler, which currently expects a GCC toolset at
-> `/opt/rh/gcc-toolset-14/...` and a non-PIE default. On a stock Ubuntu host that
-> is not present, so the linker/assembler must be made discoverable and PIE
-> disabled. This is a portability gap in the DkML toolchain objects (filed
-> upstream as Diskuv issues); see *Cached vs rebuilt opam
-> packages* for the exact shim used in this container.
+> **Linux host prerequisites.** Quick Setup compiles native code from source, so
+> the host needs a C toolchain on `PATH`: on Ubuntu or Debian that is `curl` and
+> `build-essential`. As of `CommonsLang_OCaml` release `0.1.20260820083108` the
+> DkML toolchain objects bake bare `PATH`-resolved tool names (`gcc`, `as`) and
+> ship a PIC runtime, so native compilation and linking succeed on stock
+> PIE-default hosts (Ubuntu 24.04, Debian 12+) with the system toolchain and no
+> further setup.
 
 ### Quick Setup for Maintainers
 
@@ -272,17 +272,14 @@ project needs neither.
 ## High Performance
 
 Quick Setup builds ocamlearlybird's opam closure **from source** on your machine
-(on top of prebuilt toolchain objects). That is why it needs the host shim: any
-step that *links native code* trips Ubuntu's PIE-default linker against the
-non-PIE DkML runtime (see below). The High Performance path removes local
+(on top of prebuilt toolchain objects), so it compiles and links native code and
+needs a system C toolchain on `PATH`. The High Performance path removes local
 building entirely: the project publishes its **own** prebuilt, attested objects
 in CI, and consumers `restore` + `run-object`/`get-object` them. On the consumer
-side that is **fetch-and-run only**: no compiler, no linker, no shim.
+side that is **fetch-and-run only**: no compiler, no linker, no local build at
+all, so the ~22 m cold closure build collapses to a fetch.
 
-### Why prebuilt fetch works on Ubuntu when from-source does not
-
-The portability gap is specifically a **link-time** problem. Two measurements
-on the stock Ubuntu 24.04 container make the line exact.
+### Why prebuilt fetch is fast
 
 **A prebuilt object fetches and runs.** The OCaml 5.5 compiler ships as a
 prebuilt object; fetching and running it needs no toolchain:
@@ -295,22 +292,16 @@ prebuilt object; fetching and running it needs no toolchain:
 Measured fetch+extract: **~6 s**. `ldd ocamlopt.opt` resolves cleanly against
 stock Ubuntu (`libc`, `libm`, `libdl`, `libpthread`, `ld-linux-x86-64.so.2`:
 nothing DkML-specific), and both `ocamlopt.opt` and `ocamlc.opt` report `5.5.0`
-and run. An already-linked object is just an ELF the loader is happy with.
+and run. An already-linked object is just an ELF the loader is happy with, so a
+path that only *fetches* already-linked objects skips the compile and link work
+that Quick Setup does on every cold build.
 
-**Linking new native code fails.** Using that same prebuilt compiler to link a
-fresh native executable on Ubuntu:
-
-```text
-/usr/bin/ld: libasmrun.a(alloc.n.o): relocation R_X86_64_32 against symbol
-  `caml_copy_string' can not be used when making a PIE object; recompile with -fPIE
-```
-
-The DkML runtime archives are built non-PIE (the RedHat-like toolset default);
-Ubuntu's `ld` defaults to PIE. So **every from-source link** (all of Quick
-Setup's closure, and the final adapter link) needs `-no-pie`, which is what the
-Quick Setup shim supplies. A path that only *fetches* already-linked objects
-never invokes `ld` and never meets this wall. That is the whole point of High
-Performance.
+As of `CommonsLang_OCaml` release `0.1.20260820083108` from-source linking also
+succeeds on stock PIE-default Ubuntu: the DkML runtime archives are compiled PIC
+(`libasmrun.a` and friends), so `ld` links them into a PIE executable without a
+`-no-pie` override. Earlier releases baked a non-PIE runtime, so a from-source
+link failed with `relocation R_X86_64_32 against ... can not be used when making
+a PIE object` and needed a host shim; that shim is no longer required.
 
 ### Publishing the project's own objects: `prepare-version` + `distribute`
 
@@ -439,18 +430,6 @@ toolchain objects but yields **zero** hits on the per-package `Pkg.*` objects.
 The mechanism that *does* pay off for a project's own dependency objects is
 restoring against **its own** prior releases: this is exactly what the High
 Performance CI path sets up.
-
-> **Host-prerequisite shim used in this container.** Stock Ubuntu 24.04 lacks the
-> `/opt/rh/gcc-toolset-14` layout the DkML toolchain objects expect, and defaults
-> to PIE while the DkML runtime needs `-no-pie`. The shim (not committed; a host
-> concern, filed upstream against Diskuv) symlinks the system binutils/gcc into
-> the expected toolset path and wraps `gcc` with `-fno-PIE -no-pie`:
->
-> ```sh
-> D=/opt/rh/gcc-toolset-14/root/usr/bin; mkdir -p "$D"
-> for t in g++ cc as ld ar ranlib nm objdump objcopy strip cpp; do ln -sf /usr/bin/$t "$D/$t"; done
-> printf '#!/bin/sh\nexec /usr/bin/gcc -fno-PIE -no-pie "$@"\n' > "$D/gcc"; chmod +x "$D/gcc"
-> ```
 
 ## DkML 4.14 vs OCaml (Base) 5.5
 
