@@ -180,7 +180,7 @@ afterwards use `Refresh` from step 2, which reads the stamped parameters):
   root=earlybird \
   formid=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Closure@1.3.6 \
   pkgpath=NotHackwaly_Ocamlearlybird.Ocamlearlybird version=1.3.6 \
-  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.17 \
+  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.18 \
   localsrc=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Src@1.3.6 \
   locksrcpath=./dk-opam-lock.jsonc parallel=t
 ```
@@ -192,7 +192,7 @@ still runs under emulation. This is what the earlier hand edit (commit 57fd802)
 did; @1.1.7 makes it the generator default, so a regenerated driver keeps it
 with no hand edit. A matrix with a host-unemulatable cross slot passes
 `hosttoolabi=Release.execution_abi` to restore the host-ABI pin. Keep both
-GenerateDriver and `F_BuildLockedPackage@1.0.17` at the newest versions the
+GenerateDriver and `F_BuildLockedPackage@1.0.18` at the newest versions the
 imported CommonsLang_OCaml release ships.
 
 Every opam package in the closure becomes its **own** content-addressed dk object
