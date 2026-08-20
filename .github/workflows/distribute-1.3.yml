@@ -44,10 +44,12 @@ jobs:
             # binaries are musl-dynamic and need /lib/ld-musl-x86_64.so.1, which
             # only exists inside CommonsLang_OCaml's own CI container, so every
             # package built at the musl target ABI dies in OpamBuildWrapper with
-            # exit 127 (cppo is simply the first one to get there). Blocked on
-            # dkpkg/CommonsLang_OCaml#2 (absolute gcc-toolset-14 paths baked into
-            # ocamlopt -config) and #3 (non-PIE runtime). Restore this slot once
-            # those are closed and the musl toolchain runs on a consumer host.
+            # exit 127 (cppo is simply the first one to get there). The glibc
+            # Linux_x86_64 slot's relocatability and PIE issues
+            # (dkpkg/CommonsLang_OCaml#2 and #3) are fixed as of release
+            # 0.1.20260820083108, but the musl loader availability blocker is
+            # separate; restore this slot once the musl toolchain runs on a
+            # consumer host.
           - runs-on: macos-latest
             distscript: dist/any.u
             execution-abi: Darwin_arm64
