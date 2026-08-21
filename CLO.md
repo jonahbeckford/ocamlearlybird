@@ -124,23 +124,44 @@ env -u GH_TOKEN -u GITHUB_TOKEN \
 adoption step to teach: you get a reproducible, checksum-pinned dependency on the
 toolchain package without copying magic strings by hand.
 
-**2. Write the opam pin table** (`dk-opam-pins.txt`) — see *The pin table* below
-for the full rationale of each line — and **solve** the dependency closure into a
-checked-in lock:
+**2. Regenerate the lock and driver with `Refresh`.** After a repin (step 1),
+refresh the checked-in lock and per-package driver so they track the imported
+rule versions. The zero-argument form regenerates the driver from the existing
+lock, reading the parameters stamped into the lock and driver, so you never
+re-copy the `GenerateDriver` arguments by hand:
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.6 \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8               # driver only
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 mode=solve    # re-solve the lock, then the driver
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 mode=check    # read-only; nonzero if a driver is stale
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 version=1.3.7 # bump earlybird across formid/version/localsrc
+```
+
+A driver generated before `Dk.OpamLock@1.1.8` has no stamp; adopt it once by
+passing the lock so the recovery can find it, and later runs read the stamp:
+
+```sh
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 lock=dk.opam-lock.jsonc
+```
+
+**First-time bootstrap.** Creating the lock from scratch stays the explicit
+`Solve` (write the opam pin table `dk-opam-pins.txt` first; see *The pin table*
+below for the rationale of each line):
+
+```sh
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.8 \
   'roots[]=earlybird' 'locals[]=earlybird' opam=t/opam.exe
 ```
 
 This writes `dk.opam-lock.jsonc`: a per-slot frozen graph (versions, source
 URLs + checksums, dependency edges, raw opam build/install fields). Measured
-(8 ABI slots): **~1 m 41 s – 2 m 20 s**.
+(8 ABI slots): **~1 m 41 s to 2 m 20 s**.
 
-**3. Generate the per-package build driver** from the lock:
+**3. Generate the per-package build driver** from the lock (first-time only;
+afterwards use `Refresh` from step 2, which reads the stamped parameters):
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.6 \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.8 \
   lock=dk.opam-lock.jsonc \
   out=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.Closure.values.jsonc \
   root=earlybird \
@@ -150,6 +171,9 @@ URLs + checksums, dependency edges, raw opam build/install fields). Measured
   localsrc=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Src@1.3.6 \
   locksrcpath=./dk-opam-lock.jsonc parallel=t
 ```
+
+`GenerateDriver@1.1.8` stamps these parameters into the driver's `generated`
+member, so later `Refresh` runs need no hand-copied arguments.
 
 Every opam package in the closure becomes its **own** content-addressed dk object
 built in topological order; `parallel=t` lets dk1 build independent packages
