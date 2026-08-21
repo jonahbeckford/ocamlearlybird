@@ -8,6 +8,20 @@
 {
   "$schema": "https://diskuv.com/dk/schema/dk-value-1.0.json",
   "schema_version": { "major": 1, "minor": 0 },
+  "generated": {
+    "tool": "CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.8",
+    "rulefn": "CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.18",
+    "lock": "dk.opam-lock.jsonc",
+    "lock-sha256": "8b0cbeeb0d8a11845f3cadc288bf4cb22cad3623c0673892d0b85f5256f0d967",
+    "localsrc": "NotHackwaly_Ocamlearlybird.Ocamlearlybird.Src@1.3.6",
+    "locksrcpath": "./dk-opam-lock.jsonc",
+    "root": "earlybird",
+    "formid": "NotHackwaly_Ocamlearlybird.Ocamlearlybird.Closure@1.3.6",
+    "pkgpath": "NotHackwaly_Ocamlearlybird.Ocamlearlybird",
+    "version": "1.3.6",
+    "parallel": "t",
+    "slots": ["Release.Windows_x86_64", "Release.Windows_x86", "Release.Linux_x86_64", "Release.Linux_x86_64_musl", "Release.Linux_x86", "Release.Linux_arm64", "Release.Darwin_x86_64", "Release.Darwin_arm64"]
+  },
   "forms": [
     {
       "id": "NotHackwaly_Ocamlearlybird.Ocamlearlybird.Closure@1.3.6",
