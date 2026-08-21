@@ -148,12 +148,35 @@ env -u GH_TOKEN -u GITHUB_TOKEN \
 adoption step to teach: you get a reproducible, checksum-pinned dependency on the
 toolchain package without copying magic strings by hand.
 
-**2. Write the opam pin table** (`dk-opam-pins.txt`), see *The pin table* below
-for the full rationale of each line, and **solve** the dependency closure into a
-checked-in lock:
+**2. Regenerate the lock and driver with `Refresh`.** After a repin (step 1),
+refresh the checked-in lock and per-package driver so they track the imported
+rule versions. The zero-argument form regenerates the driver from the existing
+lock, reading the parameters stamped into the lock and driver: never re-copy the
+`GenerateDriver` arguments by hand, since a stale hand-copied `rulefn` was the
+2026-08-20 release failure.
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.7 \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8               # driver only
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 mode=solve    # re-solve the lock, then the driver
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 mode=check    # read-only; nonzero if a driver is stale
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 version=1.3.7 # bump earlybird across formid/version/localsrc
+```
+
+`mode=check` is wired into `distribute-1.3.yml`, so a stale driver fails in
+seconds at CI time instead of mid-build. A driver generated before
+`Dk.OpamLock@1.1.8` has no stamp; adopt it once by passing the lock so the
+recovery can find it, and later runs read the stamp:
+
+```sh
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 lock=dk.opam-lock.jsonc
+```
+
+**First-time bootstrap.** Creating the lock from scratch in a new project stays
+the explicit `Solve` (write the opam pin table `dk-opam-pins.txt` first; see
+*The pin table* below for the rationale of each line):
+
+```sh
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.8 \
   'roots[]=earlybird' 'locals[]=earlybird' opam=t/opam.exe
 ```
 
@@ -174,7 +197,7 @@ URLs + checksums, dependency edges, raw opam build/install fields). Measured
 afterwards use `Refresh` from step 2, which reads the stamped parameters):
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.7 \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.8 \
   lock=dk.opam-lock.jsonc \
   out=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.Closure.values.jsonc \
   root=earlybird \
@@ -185,20 +208,16 @@ afterwards use `Refresh` from step 2, which reads the stamped parameters):
   locksrcpath=./dk-opam-lock.jsonc parallel=t
 ```
 
-`GenerateDriver@1.1.7` builds the host tools (`ocamlfind`, `ocamlbuild`) at
-`Release.target_abi` by default, so on a cross slot the host can emulate
-(WOW64/Rosetta/multilib) their findlib metadata matches the target and the tool
-still runs under emulation. This is what the earlier hand edit (commit 57fd802)
-did; @1.1.7 makes it the generator default, so a regenerated driver keeps it
-with no hand edit. A matrix with a host-unemulatable cross slot passes
-`hosttoolabi=Release.execution_abi` to restore the host-ABI pin. Keep both
-GenerateDriver and `F_BuildLockedPackage@1.0.18` at the newest versions the
-imported CommonsLang_OCaml release ships.
-
-Every opam package in the closure becomes its **own** content-addressed dk object
-built in topological order; `parallel=t` lets dk1 build independent packages
-concurrently, and an interrupted build resumes from the objects already
-completed.
+`GenerateDriver@1.1.8` stamps these parameters into the driver's `generated`
+member, so later `Refresh` runs need no hand-copied arguments. It builds the host
+tools (`ocamlfind`, `ocamlbuild`) at `Release.target_abi` by default, so on a
+cross slot whose host can emulate the target (WOW64/Rosetta/multilib) the findlib
+metadata matches the target and the tool still runs; a matrix with a
+host-unemulatable cross slot passes `hosttoolabi=Release.execution_abi` to restore
+the host-ABI pin. Every opam package in the closure becomes its **own**
+content-addressed dk object built in topological order; `parallel=t` lets dk1
+build independent packages concurrently, and an interrupted build resumes from
+the objects already completed.
 
 **4. Author the two hand-written forms.** `Ocamlearlybird.Src.values.jsonc`
 assembles the working tree (from the `dk.u` workspace assets) into a single
