@@ -144,7 +144,10 @@ jobs:
             #   CI can accept their producer keys (dk0 denies unknown producer
             #   keys by default and CI has no terminal to accept them):
             #   This workspace's only direct import is CommonsLang_OCaml.
-            trust-packages: 'CommonsLang_OCaml'
+            #   dist/any.u runs CommonsBase_FileMagic's `file` to verify each
+            #   slot's binary is compiled for its ABI, so its producer key must
+            #   be trusted here too.
+            trust-packages: 'CommonsLang_OCaml CommonsBase_FileMagic'
             #   Use MlFront HEAD when CI build is not from a tag
             experimental-mlfront-ref: ${{ github.ref_type != 'tag' && 'HEAD' }}
             #   Uncomment when testing MlFront
@@ -181,75 +184,6 @@ jobs:
             id: NotHackwaly_Ocamlearlybird@${{ github.ref_name }}
             pubkey: ${{ secrets.distribute_1_3_pubkey }}
             seckey: ${{ secrets.distribute_1_3_seckey }}
-
-      # ---- Guard: the ocamlearlybird.exe in every slot's store must match its ABI ----
-      # Release 1.3.202608152325 shipped a 64-bit x86-64 binary inside the
-      # "Linux_x86" store (restore contamination under ABI-invariant value-ids);
-      # its value-id matched, so nothing failed until a 32-bit host ran it. The
-      # binaries here live nested (per-slot valuestore zip -> object zip ->
-      # bin/ocamlearlybird.exe), so extract before `file`. Modeled on
-      # CommonsBase_Dk's flat-binary arch guard. Fails loud if NO store is
-      # found (a layout change must break this guard, not skip it).
-      - name: Verify ocamlearlybird machine arch matches each ABI
-        shell: bash
-        run: |
-          set -uo pipefail
-          expected() {
-            case "$1" in
-              Linux_x86)      echo 'ELF 32-bit.*(Intel 80386|Intel i386|i386)' ;;
-              Linux_x86_64)   echo 'ELF 64-bit.*x86-64' ;;
-              Darwin_arm64)   echo 'Mach-O 64-bit.*arm64' ;;
-              Darwin_x86_64)  echo 'Mach-O 64-bit.*x86_64' ;;
-              Windows_x86)    echo 'PE32 executable.*(80386|Intel i386)' ;;
-              Windows_x86_64) echo 'PE32\+ executable.*(x86-64|x86_64)' ;;
-              *)              echo '' ;;
-            esac
-          }
-          fail=0 seen=0
-          for zipf in dk-dist/NotHackwaly_Ocamlearlybird-any-*.package.valuestore.zip; do
-            [ -e "$zipf" ] || continue
-            abi=$(basename "$zipf" | sed -e 's/^NotHackwaly_Ocamlearlybird-any-//' -e 's/\.package\.valuestore\.zip$//')
-            pat=$(expected "$abi")
-            if [ -z "$pat" ]; then echo "FAIL unknown ABI in asset name: $zipf"; fail=1; continue; fi
-            exe=$(python3 - "$zipf" <<'PY'
-          import io, sys, zipfile
-          z = zipfile.ZipFile(sys.argv[1])
-          for n in z.namelist():
-              raw = z.read(n)
-              if not raw.startswith(b'PK'):
-                  continue
-              try:
-                  inner = zipfile.ZipFile(io.BytesIO(raw))
-              except zipfile.BadZipFile:
-                  continue
-              for m in inner.namelist():
-                  if m.endswith('ocamlearlybird.exe'):
-                      out = 'arch-guard-extracted.exe'
-                      with open(out, 'wb') as f:
-                          f.write(inner.read(m))
-                      print(out)
-                      sys.exit(0)
-          sys.exit(1)
-          PY
-            ) || { echo "FAIL $zipf ($abi): no ocamlearlybird.exe found in any object"; fail=1; continue; }
-            seen=1
-            desc=$(file -b "$exe")
-            if printf '%s\n' "$desc" | grep -Eq "$pat"; then
-              echo "ok   $zipf ($abi): $desc"
-            else
-              echo "FAIL $zipf ($abi): expected /$pat/, got: $desc"
-              fail=1
-            fi
-          done
-          if [ "$seen" = 0 ]; then
-            echo "::error::arch guard found NO per-slot valuestore under dk-dist/ (layout changed?)"
-            exit 1
-          fi
-          if [ "$fail" != 0 ]; then
-            echo "::error::An ocamlearlybird binary's machine arch does not match its ABI slot (see FAIL lines)."
-            exit 1
-          fi
-          echo "All slot binaries match their ABI."
 
       # Attests the distribution, publishes the sigstore bundle for values.json
       # as a release asset, and creates the release. A consumer then fetches
