@@ -364,7 +364,7 @@ builder and publishes the signed bundle (under `dk-dist/`) as a GitHub release.
   -s Release.Linux_x86_64 -m ./bin/ocamlearlybird.exe -- --help=plain
 ```
 
-(The `-m` member is `./bin/ocamlearlybird.exe` — the exact archive name,
+(The `-m` member is `./bin/ocamlearlybird.exe`, the exact archive name,
 including the `./` prefix.)
 
 The `restore` seeds the local value store from the release; the `run-object`
@@ -375,7 +375,7 @@ Setup collapses to a range-fetch of prebuilt objects that runs on stock Ubuntu.
 Measured on the same `ubuntu-latest` CI runner as the timings above (release
 `1.3.202608151634`, `Release.Linux_x86_64`): **restore ~75 s + run ~101 s ≈
 2 m 56 s, with zero local compilation**, versus the **~22 m 35 s** cold
-from-source build — roughly a 7.7× speedup. The measurement is reproducible from
+from-source build, roughly a 7.7× speedup. The measurement is reproducible from
 the Actions tab via `.github/workflows/measure-restore.yml`.
 
 ### The Base 5.5 route
