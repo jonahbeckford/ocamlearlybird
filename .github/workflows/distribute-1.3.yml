@@ -101,9 +101,6 @@ jobs:
       - name: Distribute Modules
         uses: diskuv/dk-distribute@v4
         with:
-            #   Run the multi-threaded dk1 engine, not the default single-threaded
-            #   dk0 (which segfaults on this from-source distribute build).
-            orchestrator: dk1
             #   The repo name (ocamlearlybird) is not a valid dk library id, so the
             #   default `id` (github repo without owner) cannot be used. Pin it to
             #   the real library id; the version tracks the pushed tag. (dk-distribute@v3
@@ -177,8 +174,6 @@ jobs:
       - name: Combine Modules
         uses: diskuv/dk-distribute/combine@v4
         with:
-            #   Match the distribute job's engine (dk1).
-            orchestrator: dk1
             #   Same library-id pin as the distribute job (combine defaults its `id`
             #   to the repo name too, which is not a valid dk library id here).
             id: NotHackwaly_Ocamlearlybird@${{ github.ref_name }}
