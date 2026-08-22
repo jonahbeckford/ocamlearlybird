@@ -28,10 +28,10 @@ them run `./dk1 update --no-imports` to refresh the recorded checksums.
   \dk.asset(byteSize: "16", checksum: (sha256: "6dff6804e49533fc19ea7b0fbe988213a210fa7b9a2d5fd5f5b89eed6e380e53"))\;
 
   % unified.asset { name="DuneProject", file="dune-project" }
-  \dk.asset(byteSize: "764", checksum: (sha256: "009550d484b16d691c19e3bcc9574b0285ea3df0bd095bb28d212508f08f02b6"))\;
+  \dk.asset(byteSize: "780", checksum: (sha256: "919033718df7d4b1546ef485a7b35d0bcd23a5b97dad73d9f70826d04951e714"))\;
 
   % unified.asset { name="Opam", file="earlybird.opam" }
-  \dk.asset(byteSize: "1112", checksum: (sha256: "6e1fdc795410ce6b3bf4b44e9c86a1edfb504ef054d6e020492d65d08e7d0c22"))\;
+  \dk.asset(byteSize: "1124", checksum: (sha256: "786504fe6aa5991f03cfa72e5fb830112044f5c76cb42945f51d72ad3f1566f2"))\;
 
   % unified.asset { name="Src", dir="src" }
   \dk.asset(byteSize: "51509", checksum: (sha256: "ca452ef1920f6c630882b146796b3adfbf44bb91f7eeda8a41e2e1656fcd1e1d"))\;
