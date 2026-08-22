@@ -22,22 +22,22 @@ them run `./dk1 update --no-imports` to refresh the recorded checksums.
 ### NotHackwaly_Ocamlearlybird.Apparatus@1.3.6
 
   % unified.asset { name="DuneRoot", file="dune" }
-  \dk.asset(byteSize: "88", checksum: (sha256: "c141e9ff54b0997caa61a48611570efd343bf1297c43019ccf28544a74600e66"))\;
+  \dk.asset(byteSize: "83", checksum: (sha256: "9a38938be58029f13436cf66d626b20b4fa14ecb32428efe123f93b36df96bac"))\;
 
   % unified.asset { name="DuneWorkspace", file="dk-src/dune-workspace" }
-  \dk.asset(byteSize: "17", checksum: (sha256: "993fc51db2713dffe188441a4f3ba9a8471026ea068d7d551da49534e849429d"))\;
+  \dk.asset(byteSize: "16", checksum: (sha256: "6dff6804e49533fc19ea7b0fbe988213a210fa7b9a2d5fd5f5b89eed6e380e53"))\;
 
   % unified.asset { name="DuneProject", file="dune-project" }
-  \dk.asset(byteSize: "799", checksum: (sha256: "3f93729edc91026b2cf222be686b97f513932d1a36838944803647af4ff11879"))\;
+  \dk.asset(byteSize: "780", checksum: (sha256: "919033718df7d4b1546ef485a7b35d0bcd23a5b97dad73d9f70826d04951e714"))\;
 
   % unified.asset { name="Opam", file="earlybird.opam" }
-  \dk.asset(byteSize: "1158", checksum: (sha256: "02551b7f14b2cf47ee9689024d5b540e24be26f04776b8ecc7b4941b74f1ddc2"))\;
+  \dk.asset(byteSize: "1124", checksum: (sha256: "786504fe6aa5991f03cfa72e5fb830112044f5c76cb42945f51d72ad3f1566f2"))\;
 
   % unified.asset { name="Src", dir="src" }
-  \dk.asset(byteSize: "52045", checksum: (sha256: "4a2d09e9867145c84b0b07f54c6e68b0f7f04e16cda9614c5e8160147a4fe7ff"))\;
+  \dk.asset(byteSize: "51509", checksum: (sha256: "ca452ef1920f6c630882b146796b3adfbf44bb91f7eeda8a41e2e1656fcd1e1d"))\;
 
   % unified.asset { name="Lock", file="dk.opam-lock.jsonc" }
-  \dk.asset(byteSize: "85496", checksum: (sha256: "c277e575b917be368a9014e2dbbd252dc9ad30db4b1e1b8a6451ef000d620072"))\;
+  \dk.asset(byteSize: "83240", checksum: (sha256: "8b0cbeeb0d8a11845f3cadc288bf4cb22cad3623c0673892d0b85f5256f0d967"))\;
 
   %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml", tag="0.1.20260821175730"  }
   \dk.import(type: "github-l2", library: "CommonsLang_OCaml",

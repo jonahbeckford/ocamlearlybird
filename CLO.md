@@ -326,13 +326,18 @@ adapter, which needs an OpamBuild rule that parameterizes the toolchain rather
 than hardwiring 4.14.3. The **High Performance** path (PR 2) is where the 5.5
 route is exercised in CI.
 
-### Why `dap` is held at `>= 1.0.6`, not upstream's `>= 1.1.0`
+### Why `dap` is held at `{>= "1.0.6" & < "1.1.0"}`, not upstream's `>= 1.1.0`
 
 Upstream ocamlearlybird bumped `earlybird.opam` / `dune-project` to `dap {>= "1.1.0"}`
 (the "dap 1.71 spec" change) and set the RunInTerminal field
 `args_can_be_interpreted_by_shell`. **Do not re-bump `dap` here** while the build
 targets the 4.14.3 toolchain: `dap` 1.1.0's dependency closure does not solve
-against it. Solving the closure (with `Solve@1.1.5`, which already filters
+against it. The `< "1.1.0"` upper bound is required, not just the hold: this
+branch's source does not set the RunInTerminal field that `dap` 1.1.0's record
+type requires, so a plain `opam install` that selects `dap` 1.1.0 (which current
+opam-repository permits on many compilers) fails to compile
+(`Some record fields are undefined: args_can_be_interpreted_by_shell`). The
+bound makes the opam metadata state what the source can actually build against. Solving the closure (with `Solve@1.1.5`, which already filters
 test-only edges) gives, per pinned OCaml:
 
 - `ocaml 4.14.3` → no solution, closure requires `ocaml (< 4.14.3 | >= 5.0)`;
