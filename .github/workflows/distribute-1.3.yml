@@ -141,7 +141,10 @@ jobs:
             #   CI can accept their producer keys (dk0 denies unknown producer
             #   keys by default and CI has no terminal to accept them):
             #   This workspace's only direct import is CommonsLang_OCaml.
-            trust-packages: 'CommonsLang_OCaml'
+            #   dist/any.u runs CommonsBase_FileMagic's `file` to verify each
+            #   slot's binary is compiled for its ABI, so its producer key must
+            #   be trusted here too.
+            trust-packages: 'CommonsLang_OCaml CommonsBase_FileMagic'
             #   Use MlFront HEAD when CI build is not from a tag
             experimental-mlfront-ref: ${{ github.ref_type != 'tag' && 'HEAD' }}
             #   Uncomment when testing MlFront

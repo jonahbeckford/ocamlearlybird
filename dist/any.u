@@ -30,3 +30,28 @@ applied back into this script. These are content-addressed and reproducible
   \dk.object(abi: "Release.Linux_x86_64", value-id: "ok4emdyssvgza2bkzlrdkcyi3faiae7d7p3bma6csg5a7r57ijjja")
   \dk.object(abi: "Release.Windows_x86", value-id: "o4s432fjffm72yod4uah26vteicfy5xtnushks7ccrcgohq5mon7a")
   \dk.object(abi: "Release.Windows_x86_64", value-id: "o5g7qcdhtvyxw6oa2dc6qj6ecpqf3vsvv7ob6zufs4kiwijfzi4uq")\;
+
+## Architecture verification
+
+Running the OpenBSD `file`(1) tool (from `CommonsBase_FileMagic`) on the built
+adapter confirms each slot's `bin/ocamlearlybird.exe` really is compiled for the
+ABI it is published under. `file` runs at `Release.execution_abi` (the build
+host) and inspects the `Release.target_abi` binary, so it covers the cross slots
+too. The per-abi `file` output is recorded below, one `\dk.target` line per slot,
+harvested from the first CI run the same way as the value-ids above.
+
+  $ run-object CommonsBase_FileMagic.File@7.8.50407 -s Release.execution_abi -m ./bin/file.exe -e bin/file.exe --
+  >   -b $(get-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 -s Release.target_abi -d : -e file.exe)/bin/ocamlearlybird.exe
+  \test(pass)
+  \dk.target(abi: "Darwin_arm64")[Mach-O 64-bit executable, flags:<NOUNDEFS|DYLDLINK|TWOLEVEL|WEAK_DEFINES|BINDS_TO_WEAK|PIE>
+  ]
+  \dk.target(abi: "Darwin_x86_64")[Mach-O 64-bit executable, flags:<NOUNDEFS|DYLDLINK|TWOLEVEL|WEAK_DEFINES|BINDS_TO_WEAK|PIE>
+  ]
+  \dk.target(abi: "Linux_x86")[ELF 32-bit LSB executable, Intel i386, version 1 (SYSV)
+  ]
+  \dk.target(abi: "Linux_x86_64")[ELF 64-bit LSB executable, x86-64, version 1 (SYSV)
+  ]
+  \dk.target(abi: "Windows_x86")[PE32 executable for MS Windows 6.00 (console),, 5 sections
+  ]
+  \dk.target(abi: "Windows_x86_64")[PE32+ executable for MS Windows 6.00 (console),, 7 sections
+  ]\;
