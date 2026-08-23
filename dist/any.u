@@ -1,0 +1,32 @@
+# Distribution for NotHackwaly_Ocamlearlybird
+
+## ocamlearlybird debug adapter
+
+`ocamlearlybird` is a debug adapter (DAP) for OCaml bytecode. It ships as the
+single native executable `bin/ocamlearlybird.exe`, built from source as a
+per-package content-addressed opam closure
+(`NotHackwaly_Ocamlearlybird.Ocamlearlybird.Closure`) and republished as one
+executable per slot.
+
+The object is `bin/ocamlearlybird.exe` compiled for the ABI. The `Release.target_abi`
+wildcard resolves to the slot the workflow passes as `--target-abi`, so this one
+script covers every shipped slot: `Linux_x86`, `Linux_x86_64`, `Darwin_x86_64`,
+`Darwin_arm64`, `Windows_x86_64`, and `Windows_x86` (one abi-keyed `\dk.object`
+line each below). The `Linux_x86_64_musl` slot is deferred — its from-source
+toolchain does not build yet (see the `distribute-1.3.yml` matrix comments and
+rotary-phone `prompts/linux-x86_64-musl-abi.md`); re-add its `\dk.object` line
+once fixed.
+
+The per-slot `\dk.object` value-ids are harvested from the first CI run (the DkML
+pattern): the first `distribute` emits them as a `dk-patches/` diff that is
+applied back into this script. These are content-addressed and reproducible
+(verified byte-identical across two independent CI tags), so a re-tag matches.
+
+  $ get-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 -s Release.target_abi -d ${RUNTIME}/Ocamlearlybird-1.3.6
+  \test(pass)
+  \dk.object(abi: "Release.Darwin_arm64", value-id: "omtfpbdektkgath7i4swzhvzc5fxtderwphdlegrg4bxta5v5sl4q")
+  \dk.object(abi: "Release.Darwin_x86_64", value-id: "ow24bfne7mu5sxwdczu4kitbn6flstsyhxbczhtrziokzpuoaydpa")
+  \dk.object(abi: "Release.Linux_x86", value-id: "orb4dzfhh7h3ellp55iefx6gjj2yhrmyp2reqs74spm23kmabhrjq")
+  \dk.object(abi: "Release.Linux_x86_64", value-id: "ok4emdyssvgza2bkzlrdkcyi3faiae7d7p3bma6csg5a7r57ijjja")
+  \dk.object(abi: "Release.Windows_x86", value-id: "o4s432fjffm72yod4uah26vteicfy5xtnushks7ccrcgohq5mon7a")
+  \dk.object(abi: "Release.Windows_x86_64", value-id: "o5g7qcdhtvyxw6oa2dc6qj6ecpqf3vsvv7ob6zufs4kiwijfzi4uq")\;
