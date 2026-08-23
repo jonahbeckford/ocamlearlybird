@@ -101,24 +101,32 @@ jobs:
         with:
           lfs: true
 
+      # T0 is stamped after checkout but before switch create, so the opam
+      # fresh-to-binary number includes switch create + compiler install
+      # (setup-ocaml), the fair counterpart to dk fetching its toolchain.
+      - name: Stamp opam start time (before switch create)
+        shell: bash
+        run: echo "OPAM_T0=$(date +%s%3N)" >> "$GITHUB_ENV"
+
       # Matches the dk-locked compiler (CommonsLang_OCaml.DkML@4.14.3) so the
       # opam and dk tracks build the same package set with the same compiler.
-      # setup-ocaml performs the switch create + compiler install; that step's
-      # own duration in the Actions log is the opam equivalent of the dk
-      # toolchain fetch.
       - name: Set up OCaml 4.14 (switch create + compiler install)
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 4.14.x
 
-      - name: opam deps + dune build cold/warm/edit (timed)
+      - name: opam setup + deps + dune build cold/warm/edit (timed)
         shell: bash
         run: |
           set -euo pipefail
           now() { date +%s%3N; }
+          t0="$OPAM_T0"
           echo "OPAM MEASURE STARTED $(date -u +%H:%M:%S) os=${{ matrix.os }}"
 
-          a=$(now); opam install . --deps-only -y; b=$(now)
+          a=$(now)
+          echo "PHASE opam_setup ms=$((a-t0))"
+
+          opam install . --deps-only -y; b=$(now)
           echo "PHASE opam_deps ms=$((b-a))"
 
           # @install builds the library + executable (the shipped artifacts) and
@@ -126,6 +134,7 @@ jobs:
           # Windows runner. This measures the same deliverable the dk track runs.
           c=$(now); opam exec -- dune build @install; d=$(now)
           echo "PHASE opam_build_cold ms=$((d-c))"
+          echo "PHASE opam_fresh_to_binary ms=$((d-t0))"
 
           e=$(now); opam exec -- dune build @install; f=$(now)
           echo "PHASE opam_build_warm ms=$((f-e))"
@@ -137,5 +146,5 @@ jobs:
           i=$(now); opam exec -- dune build @install; j=$(now)
           echo "PHASE opam_build_edit ms=$((j-i))"
 
-          echo "OPAM SUMMARY os=${{ matrix.os }} deps_ms=$((b-a)) build_cold_ms=$((d-c)) build_warm_ms=$((f-e)) run_warm_ms=$((h-g)) build_edit_ms=$((j-i))"
+          echo "OPAM SUMMARY os=${{ matrix.os }} fresh_to_binary_ms=$((d-t0)) setup_ms=$((a-t0)) deps_ms=$((b-a)) build_cold_ms=$((d-c)) build_warm_ms=$((f-e)) run_warm_ms=$((h-g)) build_edit_ms=$((j-i))"
           echo "OPAM MEASURE DONE $(date -u +%H:%M:%S)"
