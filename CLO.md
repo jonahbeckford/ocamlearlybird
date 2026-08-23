@@ -101,9 +101,13 @@ vendored `./dk1` launcher, which self-installs the pinned version on first run.)
 - `-m bin/ocamlearlybird.exe` selects the member of the built object to execute.
 - everything after `--` is passed to the adapter.
 
-The first run builds ocamlearlybird's dependency closure (measured cold build:
-**~22 m 35 s**). Subsequent runs are served entirely from the local
-object cache (measured warm run: **~32 s**).
+The first run assembles ocamlearlybird's dependency closure: it fetches the
+prebuilt toolchain and the locked dependency objects and builds the `earlybird`
+leaf package from source. Measured on GitHub Actions runners
+(`.github/workflows/measure-performance.yml`), the first run is **~3 m 45 s on
+Linux_x86_64** and **~9 m 35 s on Windows_x86_64**. Subsequent runs are served
+from the local object cache: the warm re-run is **~8 s on Linux_x86_64** and
+**~15 s on Windows_x86_64**.
 
 > **Linux host prerequisites.** Quick Setup compiles native code from source, so
 > the host needs a C toolchain on `PATH`: on Ubuntu or Debian that is `curl` and
@@ -297,7 +301,10 @@ needs a system C toolchain on `PATH`. The High Performance path removes local
 building entirely: the project publishes its **own** prebuilt, attested objects
 in CI, and consumers `restore` + `run-object`/`get-object` them. On the consumer
 side that is **fetch-and-run only**: no compiler, no linker, no local build at
-all, so the ~22 m cold closure build collapses to a fetch.
+all. Because Quick Setup already fetches its dependency objects prebuilt
+(measured above), the two tiers reach a first runnable binary in about the same
+time; the High Performance saving is the `earlybird` leaf compile and not
+needing a host C toolchain.
 
 ### Why prebuilt fetch is fast
 
@@ -367,16 +374,24 @@ builder and publishes the signed bundle (under `dk-dist/`) as a GitHub release.
 (The `-m` member is `./bin/ocamlearlybird.exe`, the exact archive name,
 including the `./` prefix.)
 
-The `restore` seeds the local value store from the release; the `run-object`
-finds every object already built and does **zero** local compilation. This is
-the High Performance payoff: the multi-minute from-source closure build of Quick
-Setup collapses to a range-fetch of prebuilt objects that runs on stock Ubuntu.
+The `run-object` finds every object already built and does **zero** local
+compilation: on the consumer side the closure is a range-fetch of prebuilt,
+attested objects that runs on stock Ubuntu.
 
-Measured on the same `ubuntu-latest` CI runner as the timings above (release
-`1.3.202608151634`, `Release.Linux_x86_64`): **restore ~75 s + run ~101 s ≈
-2 m 56 s, with zero local compilation**, versus the **~22 m 35 s** cold
-from-source build, roughly a 7.7× speedup. The measurement is reproducible from
-the Actions tab via `.github/workflows/measure-restore.yml`.
+Measured on GitHub Actions runners (`.github/workflows/measure-performance.yml`):
+fetching the prebuilt closure and running the adapter takes **~3 m 50 s on
+Linux_x86_64** and **~9 m on Windows_x86_64**, and the warm re-run afterward is
+**~8 s** (Linux) and **~14 s** (Windows). That first-run time is close to Quick
+Setup, which already fetches the same dependency objects, and shorter than a
+from-scratch `opam switch create` + `opam install` + `dune build` (**~5 m**
+Linux, **~16 m** Windows), which builds the compiler and every dependency from
+source.
+
+> **`restore` and pruned releases.** `restore github-l2 ...` bulk-seeds the
+> store by walking the distribution's release chain, so it needs the chain's
+> earlier releases to still be present. `run-object` and `get-object` resolve
+> and lazily fetch only the requested slot's object, so they work regardless of
+> which older releases remain.
 
 ### The Base 5.5 route
 
@@ -419,8 +434,10 @@ the localized-source object and the local `earlybird` package object, while ever
 external package object stays cached and is reused untouched.
 
 Measured edit-one-file rebuild (edit a log string in `src/main/main.ml`,
-`dk1 update --no-imports`, rebuild): **~3 m 15 s**, versus the cold
-build of **~22 m 35 s**.
+`dk1 update --no-imports`, rebuild) on GitHub Actions runners: **~20 s on
+Linux_x86_64** and **~46 s on Windows_x86_64**. Only the localized-source object
+and the `earlybird` leaf package object rebuild; the dependency objects stay
+cached.
 
 ## Cached vs rebuilt opam packages
 
