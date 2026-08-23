@@ -77,9 +77,36 @@ vendored `./dk1` launcher, which self-installs the pinned version on first run.)
 - `-m bin/ocamlearlybird.exe` selects the member of the built object to execute.
 - everything after `--` is passed to the adapter.
 
-The first run builds ocamlearlybird's dependency closure (measured cold build:
-**~22 m 35 s**). Subsequent runs are served entirely from the local
-object cache (measured warm run: **~32 s**).
+The first run assembles ocamlearlybird's dependency closure: it fetches the
+prebuilt toolchain and the locked dependency objects and builds the `earlybird`
+leaf package from source. Measured on GitHub Actions runners
+(`.github/workflows/measure-performance.yml`), the first run is **~3 m 45 s on
+Linux_x86_64** and **~9 m 35 s on Windows_x86_64**. Subsequent runs are served
+from the local object cache: the warm re-run is **~8 s on Linux_x86_64** and
+**~15 s on Windows_x86_64**.
+
+### Compared with a plain opam + dune setup
+
+Building the same binary the standard way (`opam switch create`,
+`opam install . --deps-only`, `dune build`) reaches a runnable binary more
+slowly but then keeps a much faster inner loop. Measured on the same runners
+(the `opam` figures include the switch create and compiler install):
+
+| Step | dk Quick Setup | opam + dune |
+| --- | --- | --- |
+| Linux: fresh checkout to a runnable binary | ~3 m 45 s | ~5 m |
+| Linux: re-run the built binary | ~8 s | ~0.1 s |
+| Linux: edit one file, rebuild | ~20 s | ~0.2 s |
+| Windows: fresh checkout to a runnable binary | ~9 m 35 s | ~16 m |
+| Windows: re-run the built binary | ~15 s | ~1.3 s |
+| Windows: edit one file, rebuild | ~46 s | ~1.5 s |
+
+dk reaches a runnable binary first because it fetches the prebuilt, attested
+toolchain and dependency objects while opam builds the compiler and every
+dependency from source. Once built, dune's persistent `_build` gives a
+sub-second inner loop, so a developer iterating on source is fastest under
+`dune build -w` against a switch that reuses dk's already-built dependency
+closure.
 
 > **Linux host prerequisites.** Quick Setup compiles native code from source, so
 > the host needs a C toolchain on `PATH`: on Ubuntu or Debian that is `curl` and
@@ -273,8 +300,10 @@ the localized-source object and the local `earlybird` package object, while ever
 external package object stays cached and is reused untouched.
 
 Measured edit-one-file rebuild (edit a log string in `src/main/main.ml`,
-`dk1 update --no-imports`, rebuild): **~3 m 15 s**, versus the cold
-build of **~22 m 35 s**.
+`dk1 update --no-imports`, rebuild) on GitHub Actions runners: **~20 s on
+Linux_x86_64** and **~46 s on Windows_x86_64**. Only the localized-source object
+and the `earlybird` leaf package object rebuild; the dependency objects stay
+cached.
 
 ## Cached vs rebuilt opam packages
 
