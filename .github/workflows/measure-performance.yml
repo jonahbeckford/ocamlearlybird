@@ -32,8 +32,8 @@ jobs:
           - os: windows-latest
             slot: Release.Windows_x86_64
     runs-on: ${{ matrix.os }}
-    # A cold from-source closure build is ~22 min plus native compilation; give
-    # the job generous headroom over the default and the ci.yml jobs.
+    # A cold from-source closure build plus native compilation; give the job
+    # generous headroom over the default and the ci.yml jobs.
     timeout-minutes: 90
     steps:
       - name: Checkout repository
@@ -41,43 +41,62 @@ jobs:
         with:
           lfs: true
 
-      - name: dk cold build + warm run + edit rebuild (timed)
+      # Linux uses the POSIX ./dk1 launcher (curl is present) and date-based
+      # millisecond timing.
+      - name: dk cold build + warm run + edit rebuild (timed, Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
           now() { date +%s%3N; }
           slot='${{ matrix.slot }}'
+          run() { ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+                    -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain >/dev/null; }
           echo "DK MEASURE STARTED $(date -u +%H:%M:%S) slot=$slot"
 
-          # Cold: first run compiles ocamlearlybird's whole dependency closure.
-          a=$(now)
-          ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
-            -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain >/dev/null
-          b=$(now)
+          a=$(now); run; b=$(now)
           echo "PHASE dk_build_cold ms=$((b-a))"
 
-          # Warm run: everything served from the local object cache. This is the
-          # ~32 s number under scrutiny; on a native host it should be the
-          # steady-state re-run cost.
-          c=$(now)
-          ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
-            -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain >/dev/null
-          d=$(now)
+          c=$(now); run; d=$(now)
           echo "PHASE dk_run_warm ms=$((d-c))"
 
-          # Edit one source file, rebuild: dk's incremental unit is the whole
-          # leaf package object, so this recompiles the earlybird package (deps
-          # stay cached). This is the ~3 m 15 s number under scrutiny.
           printf '\n(* perf measurement touch *)\n' >> src/main/main.ml
           ./dk1 update --no-imports
-          e=$(now)
-          ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
-            -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain >/dev/null
-          f=$(now)
+          e=$(now); run; f=$(now)
           echo "PHASE dk_run_edit ms=$((f-e))"
 
-          echo "DK SUMMARY slot=$slot build_cold=$(((b-a)/1000))s run_warm_ms=$((d-c)) run_edit=$(((f-e)/1000))s"
+          echo "DK SUMMARY slot=$slot build_cold_ms=$((b-a)) run_warm_ms=$((d-c)) run_edit_ms=$((f-e))"
           echo "DK MEASURE DONE $(date -u +%H:%M:%S)"
+
+      # Windows uses the dk1.cmd launcher (bootstraps via PowerShell, no curl
+      # dependency) and Stopwatch timing.
+      - name: dk cold build + warm run + edit rebuild (timed, Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $slot = '${{ matrix.slot }}'
+          function Run {
+            & .\dk1.cmd run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 `
+              -s $slot -m ./bin/ocamlearlybird.exe -- --help=plain *> $null
+            if ($LASTEXITCODE -ne 0) { throw "run-object failed ($LASTEXITCODE)" }
+          }
+          Write-Host "DK MEASURE STARTED $(Get-Date -Format HH:mm:ss) slot=$slot"
+
+          $sw = [System.Diagnostics.Stopwatch]::StartNew(); Run; $cold = $sw.ElapsedMilliseconds
+          Write-Host "PHASE dk_build_cold ms=$cold"
+
+          $sw.Restart(); Run; $warm = $sw.ElapsedMilliseconds
+          Write-Host "PHASE dk_run_warm ms=$warm"
+
+          Add-Content -Path src/main/main.ml -Value "`n(* perf measurement touch *)`n"
+          & .\dk1.cmd update --no-imports
+          if ($LASTEXITCODE -ne 0) { throw "update failed ($LASTEXITCODE)" }
+          $sw.Restart(); Run; $edit = $sw.ElapsedMilliseconds
+          Write-Host "PHASE dk_run_edit ms=$edit"
+
+          Write-Host "DK SUMMARY slot=$slot build_cold_ms=$cold run_warm_ms=$warm run_edit_ms=$edit"
+          Write-Host "DK MEASURE DONE $(Get-Date -Format HH:mm:ss)"
 
   opam:
     strategy:
@@ -113,20 +132,21 @@ jobs:
           a=$(now); opam install . --deps-only -y; b=$(now)
           echo "PHASE opam_deps ms=$((b-a))"
 
-          c=$(now); opam exec -- dune build; d=$(now)
+          # @install builds the library + executable (the shipped artifacts) and
+          # skips the test rules, which spawn the debugger and time out on the
+          # Windows runner. This measures the same deliverable the dk track runs.
+          c=$(now); opam exec -- dune build @install; d=$(now)
           echo "PHASE opam_build_cold ms=$((d-c))"
 
-          e=$(now); opam exec -- dune build; f=$(now)
+          e=$(now); opam exec -- dune build @install; f=$(now)
           echo "PHASE opam_build_warm ms=$((f-e))"
 
-          # Re-run the already-built binary: the opam equivalent of dk_run_warm.
           g=$(now); opam exec -- dune exec -- ocamlearlybird --help=plain >/dev/null; h=$(now)
           echo "PHASE opam_run_warm ms=$((h-g))"
 
-          # Edit one source file, incremental rebuild (dune's file-level cache).
           printf '\n(* perf measurement touch *)\n' >> src/main/main.ml
-          i=$(now); opam exec -- dune build; j=$(now)
+          i=$(now); opam exec -- dune build @install; j=$(now)
           echo "PHASE opam_build_edit ms=$((j-i))"
 
-          echo "OPAM SUMMARY os=${{ matrix.os }} deps=$(((b-a)/1000))s build_cold=$(((d-c)/1000))s build_warm_ms=$((f-e)) run_warm_ms=$((h-g)) build_edit_ms=$((j-i))"
+          echo "OPAM SUMMARY os=${{ matrix.os }} deps_ms=$((b-a)) build_cold_ms=$((d-c)) build_warm_ms=$((f-e)) run_warm_ms=$((h-g)) build_edit_ms=$((j-i))"
           echo "OPAM MEASURE DONE $(date -u +%H:%M:%S)"
