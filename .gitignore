@@ -2,3 +2,11 @@
 node_modules
 /_build
 .merlin
+
+# dk build system transient state (see CLO.md). The durable, committable dk
+# files live under etc/dk/ (import records, capability grants, authored forms);
+# only the transient stores and download scratch are ignored here.
+/t/
+/dk-dist/
+etc/dk/i/values.unattested.json
+etc/dk/i/dk-closure-manifest.tsv
