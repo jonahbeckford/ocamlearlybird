@@ -439,6 +439,78 @@ Linux_x86_64** and **~46 s on Windows_x86_64**. Only the localized-source object
 and the `earlybird` leaf package object rebuild; the dependency objects stay
 cached.
 
+## Fast dev loop (opam venv)
+
+That whole-package rebuild is the right unit for a reproducible release build,
+but it re-stages and relinks the entire leaf package on every edit (tens of
+seconds; see the numbers above). For a tighter inner loop, materialize an *opam
+venv* instead: a real, dune-usable opam prefix built from the same locked
+dependency closure and the same DkML 4.14.3 compiler dk ships, so native
+`dune build -w` runs directly against the working tree and recompiles only the
+module you edited.
+
+Set it up once (and again after any dependency change). The first dialog
+generates a driver that merges the non-local closure into a single cached prefix
+object; the second stages that prefix, the compiler, and dune into `./opam-venv`:
+
+```sh
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.10 \
+  lock=dk.opam-lock.jsonc \
+  out=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.DevPrefix.values.jsonc \
+  root=earlybird skiplocal=t mergedprefix=t parallel=t \
+  formid=NotHackwaly_Ocamlearlybird.Ocamlearlybird.DevPrefix@1.3.6 \
+  pkgpath=NotHackwaly_Ocamlearlybird.Ocamlearlybird version=1.3.6 \
+  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.18 \
+  localsrc=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Src@1.3.6 \
+  locksrcpath=./dk-opam-lock.jsonc
+
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.OpamVenv@1.1.10
+```
+
+Then, in each shell:
+
+```powershell
+. .\opam-venv\env.ps1              # Windows PowerShell (recommended)
+# or:  source opam-venv/env.sh     # Unix / Git Bash
+dune build -w                      # incremental; only the edited module recompiles
+dune exec -- ocamlearlybird --help=plain
+```
+
+Illustrative inner-loop timings on a 6-core Ryzen 5 2600, Windows, MSVC (edit a
+log string in `src/main/main.ml`):
+
+| loop | time |
+| --- | --- |
+| opam venv: edit + `dune build @check` (typecheck) | **~1.9 s** |
+| opam venv: edit + `dune build src/main/main.exe` (native relink) | **~9.3 s** |
+| dk: edit + `dk1 update` + `run-object` (whole package) | **~46 s** (Windows CI; ~20 s Linux, above) |
+
+`dune build --display short` after an edit confirms only `main` recompiles and
+the executable relinks, nothing else.
+
+**Parity.** The venv resolves to the same locked dependency versions and the same
+`CommonsLang_OCaml.DkML@4.14.3` compiler the reproducible dk build uses (it is
+driven from `dk.opam-lock.jsonc`), so `dune -w` behavior matches the shipped
+binary, and earlybird keeps debugging bytecode compiled by that same 4.14.3
+compiler.
+
+**Isolation.** `opam-venv/` and dune's `_build/` are invisible to both git and to
+dk's own reproducible build. dk0 drops a self-ignoring `.gitignore` (`*`) and a
+`dune` (`(dirs)`) into its `t/` store, and the OpamVenv dialog does the same for
+`opam-venv/`, so a host `dune build` never scans them and `dk1 run-object`
+produces the identical binary. No tracked project file changes.
+
+**Refresh.** After a dependency change, regenerate the driver then re-materialize:
+`Refresh@1.1.10 driver=...DevPrefix...` followed by `OpamVenv@1.1.10`. A no-op
+re-run is a fast stamp short-circuit; `force=t` rebuilds; a lock that drifted
+from the driver makes OpamVenv stop and print the exact Refresh command.
+
+**Windows.** `env.ps1` imports MSVC (vcvars) automatically for native linking. If
+a native relink reports `LNK1104: cannot open ... main.exe`, a previous
+`ocamlearlybird` process still holds the executable open, so stop it and rebuild.
+For a VS Code task, launch `code .` from an activated shell so it inherits the
+environment.
+
 ## Cached vs rebuilt opam packages
 
 What actually gets built from source, and what arrives prebuilt?
