@@ -1,0 +1,132 @@
+name: measure-performance
+# Head-to-head opam-vs-dk timing for the Quick Setup tier, which builds the
+# dependency closure from source, on Linux_x86_64 (ubuntu-latest) and
+# Windows_x86_64 (windows-latest). Each runner measures the host ABI natively.
+# Trigger from the Actions tab (workflow_dispatch) or by pushing a perf-* tag;
+# the perf workflow never runs on push or pull_request, so it stays off the PR
+# status checks.
+#
+# Every timed step prints `PHASE <name> ms=<n>` lines and a final SUMMARY line.
+# The dk track and the opam track produce the same runnable binary, so their
+# SUMMARY lines are directly comparable:
+#   dk    fresh -> binary : dk_build_cold  (compiles the whole closure)
+#   opam  fresh -> binary : (setup-ocaml step) + opam_deps + opam_build_cold
+#   dk    re-run a binary : dk_run_warm
+#   opam  re-run a binary : opam_run_warm
+#   dk    edit one file    : dk_run_edit    (rebuilds the leaf package object)
+#   opam  edit one file    : opam_build_edit (dune's file-level incremental)
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'perf-*'
+
+jobs:
+  dk:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            slot: Release.Linux_x86_64
+          - os: windows-latest
+            slot: Release.Windows_x86_64
+    runs-on: ${{ matrix.os }}
+    # A cold from-source closure build is ~22 min plus native compilation; give
+    # the job generous headroom over the default and the ci.yml jobs.
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      - name: dk cold build + warm run + edit rebuild (timed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          now() { date +%s%3N; }
+          slot='${{ matrix.slot }}'
+          echo "DK MEASURE STARTED $(date -u +%H:%M:%S) slot=$slot"
+
+          # Cold: first run compiles ocamlearlybird's whole dependency closure.
+          a=$(now)
+          ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+            -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain >/dev/null
+          b=$(now)
+          echo "PHASE dk_build_cold ms=$((b-a))"
+
+          # Warm run: everything served from the local object cache. This is the
+          # ~32 s number under scrutiny; on a native host it should be the
+          # steady-state re-run cost.
+          c=$(now)
+          ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+            -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain >/dev/null
+          d=$(now)
+          echo "PHASE dk_run_warm ms=$((d-c))"
+
+          # Edit one source file, rebuild: dk's incremental unit is the whole
+          # leaf package object, so this recompiles the earlybird package (deps
+          # stay cached). This is the ~3 m 15 s number under scrutiny.
+          printf '\n(* perf measurement touch *)\n' >> src/main/main.ml
+          ./dk1 update --no-imports
+          e=$(now)
+          ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+            -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain >/dev/null
+          f=$(now)
+          echo "PHASE dk_run_edit ms=$((f-e))"
+
+          echo "DK SUMMARY slot=$slot build_cold=$(((b-a)/1000))s run_warm_ms=$((d-c)) run_edit=$(((f-e)/1000))s"
+          echo "DK MEASURE DONE $(date -u +%H:%M:%S)"
+
+  opam:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      # Matches the dk-locked compiler (CommonsLang_OCaml.DkML@4.14.3) so the
+      # opam and dk tracks build the same package set with the same compiler.
+      # setup-ocaml performs the switch create + compiler install; that step's
+      # own duration in the Actions log is the opam equivalent of the dk
+      # toolchain fetch.
+      - name: Set up OCaml 4.14 (switch create + compiler install)
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 4.14.x
+
+      - name: opam deps + dune build cold/warm/edit (timed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          now() { date +%s%3N; }
+          echo "OPAM MEASURE STARTED $(date -u +%H:%M:%S) os=${{ matrix.os }}"
+
+          a=$(now); opam install . --deps-only -y; b=$(now)
+          echo "PHASE opam_deps ms=$((b-a))"
+
+          c=$(now); opam exec -- dune build; d=$(now)
+          echo "PHASE opam_build_cold ms=$((d-c))"
+
+          e=$(now); opam exec -- dune build; f=$(now)
+          echo "PHASE opam_build_warm ms=$((f-e))"
+
+          # Re-run the already-built binary: the opam equivalent of dk_run_warm.
+          g=$(now); opam exec -- dune exec -- ocamlearlybird --help=plain >/dev/null; h=$(now)
+          echo "PHASE opam_run_warm ms=$((h-g))"
+
+          # Edit one source file, incremental rebuild (dune's file-level cache).
+          printf '\n(* perf measurement touch *)\n' >> src/main/main.ml
+          i=$(now); opam exec -- dune build; j=$(now)
+          echo "PHASE opam_build_edit ms=$((j-i))"
+
+          echo "OPAM SUMMARY os=${{ matrix.os }} deps=$(((b-a)/1000))s build_cold=$(((d-c)/1000))s build_warm_ms=$((f-e)) run_warm_ms=$((h-g)) build_edit_ms=$((j-i))"
+          echo "OPAM MEASURE DONE $(date -u +%H:%M:%S)"
