@@ -11,9 +11,9 @@ MIT
 
 ## workspace
 
-  %% actual_version("2.4.2.321")
+  %% actual_version("2.4.2.333")
   'actual_version'
-  '2.4.2.321'
+  '2.4.2.333'
 
 The workspace assets below are the inputs of the dk build: the dune project
 files, the `src/` tree, and the checked-in opam lock. After editing any of
@@ -39,9 +39,9 @@ them run `./dk1 update --no-imports` to refresh the recorded checksums.
   % unified.asset { name="Lock", file="dk.opam-lock.jsonc" }
   \dk.asset(byteSize: "83240", checksum: (sha256: "8b0cbeeb0d8a11845f3cadc288bf4cb22cad3623c0673892d0b85f5256f0d967"))\;
 
-  %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml", tag="0.1.20260821175730"  }
+  %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml" }
   \dk.import(type: "github-l2", library: "CommonsLang_OCaml",
-    version: "0.1.20260821175730",
-    checksum: (blake2b-256: "e95455b0f6d7679b6af96a28dfa2b2180dfa83e0d8286b60384bd65706a1f64d",
-      sha256: "7457549cedb00ed90f254143a309c114a2d2ad11676c558a410737ed1a489552",
-      sha1: "913cf89c09430214b02dd90b2123cce1c32a3aeb"))\;
+    version: "0.1.20260824231123",
+    checksum: (blake2b-256: "2b6f6d0adf2ebc274c4927573a2e28169c6051d8f6b1bdbd6d257fe3cee57201",
+      sha256: "48e83ea949f57f61f05c5b24ffee1dfaa1c2db13f0dc0cd052190e43889f40ee",
+      sha1: "db3e83d59cc6ab615f952d7f28cd1e24dc36e633"))\;
