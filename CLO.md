@@ -82,8 +82,8 @@ prebuilt toolchain and the locked dependency objects and builds the `earlybird`
 leaf package from source. Measured on GitHub Actions runners
 (`.github/workflows/measure-performance.yml`), the first run is **~3 m 45 s on
 Linux_x86_64** and **~9 m 35 s on Windows_x86_64**. Subsequent runs are served
-from the local object cache: the warm re-run is **~8 s on Linux_x86_64** and
-**~15 s on Windows_x86_64**.
+from the local object cache: the warm re-run is **~7 s on Linux_x86_64** and
+**~13 s on Windows_x86_64**.
 
 ### Compared with a plain opam + dune setup
 
@@ -95,11 +95,11 @@ slowly but then keeps a much faster inner loop. Measured on the same runners
 | Step | dk Quick Setup | opam + dune |
 | --- | --- | --- |
 | Linux: fresh checkout to a runnable binary | ~3 m 45 s | ~5 m |
-| Linux: re-run the built binary | ~8 s | ~0.1 s |
-| Linux: edit one file, rebuild | ~20 s | ~0.2 s |
+| Linux: re-run the built binary | ~7 s | ~0.1 s |
+| Linux: edit one file, rebuild | ~18 s | ~0.2 s |
 | Windows: fresh checkout to a runnable binary | ~9 m 35 s | ~16 m |
-| Windows: re-run the built binary | ~15 s | ~1.3 s |
-| Windows: edit one file, rebuild | ~46 s | ~1.5 s |
+| Windows: re-run the built binary | ~13 s | ~1.3 s |
+| Windows: edit one file, rebuild | ~41 s | ~1.5 s |
 
 dk reaches a runnable binary first because it fetches the prebuilt, attested
 toolchain and dependency objects while opam builds the compiler and every
@@ -300,8 +300,8 @@ the localized-source object and the local `earlybird` package object, while ever
 external package object stays cached and is reused untouched.
 
 Measured edit-one-file rebuild (edit a log string in `src/main/main.ml`,
-`dk1 update --no-imports`, rebuild) on GitHub Actions runners: **~20 s on
-Linux_x86_64** and **~46 s on Windows_x86_64**. Only the localized-source object
+`dk1 update --no-imports`, rebuild) on GitHub Actions runners: **~18 s on
+Linux_x86_64** and **~41 s on Windows_x86_64**. Only the localized-source object
 and the `earlybird` leaf package object rebuild; the dependency objects stay
 cached.
 
