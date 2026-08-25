@@ -106,8 +106,8 @@ prebuilt toolchain and the locked dependency objects and builds the `earlybird`
 leaf package from source. Measured on GitHub Actions runners
 (`.github/workflows/measure-performance.yml`), the first run is **~3 m 45 s on
 Linux_x86_64** and **~9 m 35 s on Windows_x86_64**. Subsequent runs are served
-from the local object cache: the warm re-run is **~8 s on Linux_x86_64** and
-**~15 s on Windows_x86_64**.
+from the local object cache: the warm re-run is **~7 s on Linux_x86_64** and
+**~13 s on Windows_x86_64**.
 
 > **Linux host prerequisites.** Quick Setup compiles native code from source, so
 > the host needs a C toolchain on `PATH`: on Ubuntu or Debian that is `curl` and
@@ -381,17 +381,19 @@ attested objects that runs on stock Ubuntu.
 Measured on GitHub Actions runners (`.github/workflows/measure-performance.yml`):
 fetching the prebuilt closure and running the adapter takes **~3 m 50 s on
 Linux_x86_64** and **~9 m on Windows_x86_64**, and the warm re-run afterward is
-**~8 s** (Linux) and **~14 s** (Windows). That first-run time is close to Quick
+**~7 s** (Linux) and **~13 s** (Windows). That first-run time is close to Quick
 Setup, which already fetches the same dependency objects, and shorter than a
 from-scratch `opam switch create` + `opam install` + `dune build` (**~5 m**
 Linux, **~16 m** Windows), which builds the compiler and every dependency from
 source.
 
 > **`restore` and pruned releases.** `restore github-l2 ...` bulk-seeds the
-> store by walking the distribution's release chain, so it needs the chain's
-> earlier releases to still be present. `run-object` and `get-object` resolve
-> and lazily fetch only the requested slot's object, so they work regardless of
-> which older releases remain.
+> store by walking the distribution's release chain. As of dk `2.4.2.334` a
+> pruned earlier release in that chain is tolerated: `restore` clears the
+> partial seed and continues with a cold materialization of the requested
+> release, emitting one WARNING, so removing superseded releases no longer
+> breaks it. `run-object` and `get-object` fetch only the requested slot's
+> object directly.
 
 ### The Base 5.5 route
 
@@ -434,8 +436,8 @@ the localized-source object and the local `earlybird` package object, while ever
 external package object stays cached and is reused untouched.
 
 Measured edit-one-file rebuild (edit a log string in `src/main/main.ml`,
-`dk1 update --no-imports`, rebuild) on GitHub Actions runners: **~20 s on
-Linux_x86_64** and **~46 s on Windows_x86_64**. Only the localized-source object
+`dk1 update --no-imports`, rebuild) on GitHub Actions runners: **~18 s on
+Linux_x86_64** and **~41 s on Windows_x86_64**. Only the localized-source object
 and the `earlybird` leaf package object rebuild; the dependency objects stay
 cached.
 
@@ -483,7 +485,7 @@ log string in `src/main/main.ml`):
 | --- | --- |
 | opam venv: edit + `dune build @check` (typecheck) | **~1.9 s** |
 | opam venv: edit + `dune build src/main/main.exe` (native relink) | **~9.3 s** |
-| dk: edit + `dk1 update` + `run-object` (whole package) | **~46 s** (Windows CI; ~20 s Linux, above) |
+| dk: edit + `dk1 update` + `run-object` (whole package) | **~41 s** (Windows CI; ~18 s Linux, above) |
 
 `dune build --display short` after an edit confirms only `main` recompiles and
 the executable relinks, nothing else.
