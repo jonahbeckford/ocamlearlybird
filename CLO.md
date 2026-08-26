@@ -131,7 +131,7 @@ repository's integration mirrors the reference exemplar `dkpkg/CommonsBase_Dk`
 | `dk-opam-pins.txt`                               | opam solve pin table (see below)                                      |
 | `dk.opam-lock.jsonc`                             | the generated, checked-in per-slot dependency lock                    |
 | `etc/dk/v/…/Ocamlearlybird.Src.values.jsonc`     | localized-source form (the in-tree `earlybird` package as one object) |
-| `etc/dk/v/…/Ocamlearlybird.Closure.values.jsonc` | generated driver: one build object per closure package                |
+| `etc/dk/v/…/Ocamlearlybird.Closure.values.jsonc` | generated driver: one closure-rule line registering one object per closure package |
 | `etc/dk/v/…/Ocamlearlybird.values.jsonc`         | thin final form exposing `bin/ocamlearlybird`                         |
 | `etc/dk/i/*.values.json`                         | verified import records (written by `dk1 add`/`update`)               |
 
@@ -160,11 +160,18 @@ lock, reading the parameters stamped into the lock and driver: never re-copy the
 2026-08-20 release failure.
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8               # driver only
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 mode=solve    # re-solve the lock, then the driver
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 mode=check    # read-only; nonzero if a driver is stale
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 version=1.3.7 # bump earlybird across formid/version/localsrc
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12               # driver only
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12 mode=solve    # re-solve the lock, then the driver
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12 mode=check    # read-only; nonzero if a driver is stale
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12 version=1.3.7 # bump earlybird across formid/version/localsrc
 ```
+
+Since `Dk.OpamBuild@1.0.20` the zero-argument `Refresh` also **upgrades the
+driver shape**: with the closure build rule declared by the import and the lock
+on disk, it regenerates the per-package driver into the one-line
+`F_BuildLockedClosure` form (a deliberate, object-id-churning change; see
+*The closure build rule* below). Both `Ocamlearlybird.Closure` and
+`Ocamlearlybird.DevPrefix` are discovered and upgraded in one run.
 
 `mode=check` is wired into `distribute-1.3.yml`, so a stale driver fails in
 seconds at CI time instead of mid-build. A driver generated before
@@ -172,7 +179,7 @@ seconds at CI time instead of mid-build. A driver generated before
 recovery can find it, and later runs read the stamp:
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 lock=dk.opam-lock.jsonc
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12 lock=dk.opam-lock.jsonc
 ```
 
 **First-time bootstrap.** Creating the lock from scratch in a new project stays
@@ -180,7 +187,7 @@ the explicit `Solve` (write the opam pin table `dk-opam-pins.txt` first; see
 *The pin table* below for the rationale of each line):
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.8 \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.12 \
   'roots[]=earlybird' 'locals[]=earlybird' opam=t/opam.exe
 ```
 
@@ -201,18 +208,16 @@ URLs + checksums, dependency edges, raw opam build/install fields). Measured
 afterwards use `Refresh` from step 2, which reads the stamped parameters):
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.8 \
-  lock=dk.opam-lock.jsonc \
-  out=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.Closure.values.jsonc \
-  root=earlybird \
-  formid=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Closure@1.3.6 \
-  pkgpath=NotHackwaly_Ocamlearlybird.Ocamlearlybird version=1.3.6 \
-  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.18 \
-  localsrc=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Src@1.3.6 \
-  locksrcpath=./dk-opam-lock.jsonc parallel=t
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.12 \
+  pkg=NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 root=earlybird
 ```
 
-`GenerateDriver@1.1.8` stamps these parameters into the driver's `generated`
+Since `@1.1.11` `GenerateDriver` derives `formid`/`pkgpath`/`version`/`localsrc`
+and the output path from the single `pkg=`, and since `@1.1.12` the `rulefn`
+defaults to the newest `F_BuildLockedClosure` the import declares — so the
+generated driver is the one-line closure form. (Pass an explicit
+`rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.20` to stay on
+the legacy per-package shape.) `GenerateDriver` stamps these parameters into the driver's `generated`
 member, so later `Refresh` runs need no hand-copied arguments. It builds the host
 tools (`ocamlfind`, `ocamlbuild`) at `Release.target_abi` by default, so on a
 cross slot whose host can emulate the target (WOW64/Rosetta/multilib) the findlib
@@ -387,6 +392,14 @@ from-scratch `opam switch create` + `opam install` + `dune build` (**~5 m**
 Linux, **~16 m** Windows), which builds the compiler and every dependency from
 source.
 
+(Those warm re-run figures predate the closure build rule; see
+*The closure build rule* below. Under the per-package driver a warm re-run
+re-instantiated the build rule once per package -- 58 times, each re-decoding
+the whole lock -- which the profiler attributed roughly 9 s of the Windows warm
+run to. The closure driver pays that instantiation once (verified: exactly one
+`FORCE ...{rule}` on a warm run, down from 58, with zero rebuilds), so
+`measure-performance.yml` re-measures the warm figures on the next release.)
+
 > **`restore` and pruned releases.** `restore github-l2 ...` bulk-seeds the
 > store by walking the distribution's release chain. As of dk `2.4.2.334` a
 > pruned earlier release in that chain is tolerated: `restore` clears the
@@ -395,15 +408,43 @@ source.
 > breaks it. `run-object` and `get-object` fetch only the requested slot's
 > object directly.
 
+### The closure build rule
+
+The generated driver run-functions **one** rule,
+`CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedClosure` (since
+`Dk.OpamBuild@1.0.20`), instead of one `F_BuildLockedPackage` per package. The
+closure rule fetches and decodes the lock once, then a single submit registers
+every package's build form -- each still its own content-addressed
+`…Pkg.<Segment>@1.3.6` object -- plus an aggregate `…Closure.Built@1.3.6` form
+whose unordered `get-object` precommands demand every package concurrently, so
+the per-package build parallelism is unchanged.
+
+Why one rule and not 58: a dk rule instantiation can never be trace-cached (its
+scriptmodule dependency has no cloud-persistent hash, and a submit's form/task
+registrations are side effects a cached value could not replay), so the engine
+re-runs it on **every** command, warm or cold. Under the per-package driver
+that meant re-instantiating the build rule 58 times per warm run, each time
+re-decoding the whole 83 KB lock in lua-ml. The closure driver pays that once.
+
+The trade is a one-time object-id churn: per-package `Pkg` value-ids derive from
+the canonical id of the values document that registers them, so registering the
+whole closure in ONE document re-keys every `Pkg` object relative to the
+per-package driver (a full closure rebuild plus a `\dk.object` re-harvest in
+`dist/any.u`, the same churn a lock change causes). It also couples them -- a
+later lock edit that changes one package's form re-keys the whole closure. The
+driver stays a committed, stamped artifact (Refresh's `mode=check` gate and the
+offline build both read it); only its run-function lines collapsed from 58 to 1.
+
 ### The Base 5.5 route
 
 `CommonsLang_OCaml` ships prebuilt, runnable `Base@5.5.0` and `Base@5.4.1`
 objects alongside the relocatable `DkML@4.14.3` toolchain, and, as measured
 above, the 5.5 objects fetch and run on Ubuntu today. What is **not** yet
 possible is building the *adapter* against 5.5 through the opam pipeline: the
-per-package build rule `CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage` is
-currently **hardwired to `ocaml:version = "4.14.3"`**, so the solved closure and
-every `run-function` in the generated driver are 4.14.3-only. Targeting a 5.5
+opam build rules `CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage` and
+`F_BuildLockedClosure` (which share one form synthesis) are currently
+**hardwired to `ocaml:version = "4.14.3"`**, so the solved closure and the
+build the closure driver drives are 4.14.3-only. Targeting a 5.5
 debuggee (a bytecode debugger must match the debuggee's compiler) needs an
 OpamBuild rule that **parameterizes** the toolchain version: a change on the
 `CommonsLang_OCaml` side, filed upstream. Until then the 5.5 route demonstrates
@@ -456,18 +497,19 @@ generates a driver that merges the non-local closure into a single cached prefix
 object; the second stages that prefix, the compiler, and dune into `./opam-venv`:
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.10 \
-  lock=dk.opam-lock.jsonc \
-  out=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.DevPrefix.values.jsonc \
-  root=earlybird skiplocal=t mergedprefix=t parallel=t \
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.12 \
+  pkg=NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 root=earlybird \
   formid=NotHackwaly_Ocamlearlybird.Ocamlearlybird.DevPrefix@1.3.6 \
-  pkgpath=NotHackwaly_Ocamlearlybird.Ocamlearlybird version=1.3.6 \
-  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.18 \
-  localsrc=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Src@1.3.6 \
-  locksrcpath=./dk-opam-lock.jsonc
+  skiplocal=t mergedprefix=t
 
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.OpamVenv@1.1.10
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.OpamVenv@1.1.12
 ```
+
+(`@1.1.12` derives `pkgpath`/`version`/`localsrc`/`out` from `pkg=` and defaults
+`rulefn` to the newest `F_BuildLockedClosure` the import declares, so the
+DevPrefix driver is the one-line closure form too; only `formid`, the two
+prefix flags, and `root` are stated. Regenerate both drivers together with the
+zero-argument `Refresh` shown above.)
 
 Then, in each shell:
 
@@ -503,7 +545,7 @@ dk's own reproducible build. dk0 drops a self-ignoring `.gitignore` (`*`) and a
 produces the identical binary. No tracked project file changes.
 
 **Refresh.** After a dependency change, regenerate the driver then re-materialize:
-`Refresh@1.1.10 driver=...DevPrefix...` followed by `OpamVenv@1.1.10`. A no-op
+`Refresh@1.1.12 driver=...DevPrefix...` followed by `OpamVenv@1.1.12`. A no-op
 re-run is a fast stamp short-circuit; `force=t` rebuilds; a lock that drifted
 from the driver makes OpamVenv stop and print the exact Refresh command.
 
@@ -549,10 +591,11 @@ Can this build target OCaml 5.5 instead of 4.14?
 `CommonsLang_OCaml` ships **both** a relocatable `DkML@4.14.3` toolchain and
 newer `Base@5.5.0` / `Base@5.4.1` compiler objects, and the 5.5 objects are real
 and runnable (`dk1 run-object CommonsLang_OCaml.Base@5.5.0 … -m bin/ocamlopt`).
-**However**, the per-package opam build rule
-(`CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage`) is currently **hardwired
-to `DkML@4.14.3`** (`ocaml:version = "4.14.3"` is baked into the rule, and the
-solve helper is compiled with 4.14.3). So *today*, the Quick Setup opam pipeline
+**However**, the opam build rules
+(`CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage` and its whole-closure
+sibling `F_BuildLockedClosure`) are currently **hardwired
+to `DkML@4.14.3`** (`ocaml:version = "4.14.3"` is baked into the shared form
+synthesis, and the solve helper is compiled with 4.14.3). So *today*, the Quick Setup opam pipeline
 is 4.14.3-only.
 
 This matters for a debug adapter specifically: a bytecode debugger must match the
