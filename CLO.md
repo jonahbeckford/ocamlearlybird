@@ -184,6 +184,7 @@ it. What the flow produces (all committed):
 | `etc/dk/t/acceptances.json`, `etc/dk/t/capabilities.json` | durable trust records (step 2) |
 | `dk.u` | workspace script: pinned imports + registered asset declarations (steps 3, 5, 6) |
 | `dk-opam-pins.txt` | opam solve pin table, seeded by the quickstart (see below) |
+| `dk-src/dune-workspace` | dune workspace root marker staged into the assembled source |
 | `dk.opam-lock.jsonc` | the solved, checked-in per-slot dependency lock (step 5) |
 | `etc/dk/v/…/Ocamlearlybird.Src.values.jsonc` | generated localized-source form (step 5) |
 | `etc/dk/v/…/Ocamlearlybird.Closure.values.jsonc` | generated one-line closure driver (step 5) |
