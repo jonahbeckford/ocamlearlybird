@@ -3,15 +3,7 @@ node_modules
 /_build
 .merlin
 
-# Native dune opam venv materialized by CommonsLang_OCaml.Dk.OpamLock.OpamVenv
-# (a per-machine opam prefix + toolchain + activators; also carries its own
-# self-ignoring .gitignore). Regenerate with the OpamVenv dialog; never commit.
-/opam-venv/
-
-# dk build system transient state (see CLO.md). The durable, committable dk
-# files live under etc/dk/ (import records, capability grants, authored forms);
-# only the transient stores and download scratch are ignored here.
+# dk transient state (see CLO.md). dk writes self-ignoring .gitignore files
+# into the other directories it creates (dk-dist/, opam-venv/, the etc/dk/i
+# scratch download), so only the local store needs an entry here.
 /t/
-/dk-dist/
-etc/dk/i/values.unattested.json
-etc/dk/i/dk-closure-manifest.tsv
