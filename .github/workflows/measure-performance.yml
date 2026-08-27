@@ -40,7 +40,7 @@ jobs:
 
       # Linux uses the POSIX ./dk1 launcher (curl is present) and date-based
       # millisecond timing.
-      - name: dk fetch + cold run + warm run (timed, Linux)
+      - name: dk fetch + reconcile run + warm run (timed, Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -56,16 +56,26 @@ jobs:
           a=$(now); run; b=$(now)
           echo "PHASE dk_fetch_cold ms=$((b-a))"
 
-          # Warm run: object cached; this is the steady-state re-run cost.
+          # Second run reconciles the working tree with the fetched release:
+          # when the tree drifted since the release was harvested (for example
+          # a changed Src value), dk pays a one-time local rebuild here. On an
+          # undrifted tree this equals the warm run.
           c=$(now); run; d=$(now)
-          echo "PHASE dk_run_warm ms=$((d-c))"
+          echo "PHASE dk_run_reconcile ms=$((d-c))"
 
-          echo "DK SUMMARY slot=$slot fetch_cold_ms=$((b-a)) run_warm_ms=$((d-c))"
+          # Third run: the steady-state warm re-run cost.
+          e=$(now); run; f=$(now)
+          echo "PHASE dk_run_warm ms=$((f-e))"
+
+          # Flag drift so a reconcile rebuild is never mistaken for warm cost.
+          drifted=f
+          if [ $((d-c)) -gt $(( (f-e) * 3 )) ]; then drifted=t; fi
+          echo "DK SUMMARY slot=$slot fetch_cold_ms=$((b-a)) reconcile_ms=$((d-c)) run_warm_ms=$((f-e)) tree_drifted_from_release=$drifted"
           echo "DK MEASURE DONE $(date -u +%H:%M:%S)"
 
       # Windows uses the dk1.cmd launcher (bootstraps via PowerShell, no curl
       # dependency) and Stopwatch timing.
-      - name: dk fetch + cold run + warm run (timed, Windows)
+      - name: dk fetch + reconcile run + warm run (timed, Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -81,10 +91,18 @@ jobs:
           $sw = [System.Diagnostics.Stopwatch]::StartNew(); Run; $cold = $sw.ElapsedMilliseconds
           Write-Host "PHASE dk_fetch_cold ms=$cold"
 
+          # Second run reconciles the working tree with the fetched release:
+          # a drifted tree pays a one-time local rebuild here. On an undrifted
+          # tree this equals the warm run.
+          $sw.Restart(); Run; $reconcile = $sw.ElapsedMilliseconds
+          Write-Host "PHASE dk_run_reconcile ms=$reconcile"
+
+          # Third run: the steady-state warm re-run cost.
           $sw.Restart(); Run; $warm = $sw.ElapsedMilliseconds
           Write-Host "PHASE dk_run_warm ms=$warm"
 
-          Write-Host "DK SUMMARY slot=$slot fetch_cold_ms=$cold run_warm_ms=$warm"
+          $drifted = if ($reconcile -gt (3 * $warm)) { 't' } else { 'f' }
+          Write-Host "DK SUMMARY slot=$slot fetch_cold_ms=$cold reconcile_ms=$reconcile run_warm_ms=$warm tree_drifted_from_release=$drifted"
           Write-Host "DK MEASURE DONE $(Get-Date -Format HH:mm:ss)"
 
   opam:
