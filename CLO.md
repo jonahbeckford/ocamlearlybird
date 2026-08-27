@@ -118,12 +118,10 @@ closure.
 
 ### Quick Setup for Maintainers
 
-Adopting dk for an existing opam/dune project is the short command sequence
-below. The commands live as executable, CI-tested files on the `adopt-sandbox`
-branch: `sandbox/reduced/adopt.commands.linux.sh` is the canonical copy
-(`.macos.sh` and `.windows.ps1` carry the same flow with platform transports),
-and `.github/workflows/adopt-from-scratch.yml` replays all three platforms from
-this repository's pre-dk commit. The steps, verbatim:
+Adopting dk for an existing opam/dune project is the command sequence below,
+shown for Linux. On macOS swap the slot in step 7 (`Release.Darwin_arm64`); on
+Windows use PowerShell, `irm https://diskuv.com/dk/vendor.ps1 | iex` for step 1,
+and `.\dk1.cmd` for the rest.
 
 ```sh
 # 1. vendor the dk0/dk1 launchers into the repo
