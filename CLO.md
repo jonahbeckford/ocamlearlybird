@@ -118,102 +118,64 @@ closure.
 
 ### Quick Setup for Maintainers
 
-Adopting dk for an existing opam/dune project means adding a small set of
-checked-in files that describe the build as content-addressed objects. This
-repository's integration mirrors the reference exemplar `dkpkg/CommonsBase_Dk`
-(which builds dk itself). The pieces are:
+Adopting dk for an existing opam/dune project is **seven typed commands, 446
+characters total**. The commands live as executable, CI-tested files on the
+`claude/adopt-sandbox` branch: `sandbox/reduced/adopt.commands.linux.sh` is the
+canonical copy the character count measures (`.macos.sh` and `.windows.ps1`
+carry the same flow with platform transports), and
+`.github/workflows/adopt-from-scratch.yml` replays all three platforms from
+this repository's pre-dk commit. The steps, verbatim:
+
+```sh
+# 1. vendor the dk0/dk1 launchers into the repo
+curl -fsSL https://diskuv.com/dk/vendor.sh | sh
+# 2. durably accept the producer keys (the quickstart scaffold also imports
+#    the CommonsBase_Build support package, so accept its key too)
+./dk1 trust accept CommonsLang_OCaml --run --write
+./dk1 trust accept CommonsBase_Build
+# 3. scaffold dk.u, seed the pin table and .gitattributes, import the toolchain
+./dk1 quickstart ocaml opam414
+# 4. fetch and verify the toolchain import
+./dk1 update
+# 5. adopt: solve the lock, generate the build forms, register the assets
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Adopt@1.1.11 version=1.3.6 unit=Ocamlearlybird ns=NotHackwaly_Ocamlearlybird
+# 6. recompute the checksums of the registered workspace assets
+./dk1 update
+# 7. build and run the debug adapter
+./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+  -s Release.Linux_x86_64 -m ./bin/ocamlearlybird.exe -- --help=plain
+```
+
+`ns=` keeps this fork's committed third-party namespace; a maintainer adopting
+their own project omits it and gets a namespace derived from the repository.
+
+The first adoption of this repository took **15 manual steps and 17,518 typed
+characters**: hand-authored values files, hand-registered assets, a hand-edited
+`.gitignore`, and a chain of generator dialogs with redundant arguments. The
+reduced flow generates all of it. What the flow produces (all committed):
 
 | File | Role |
 |---|---|
-| `dk0`, `dk1`, `dk0.cmd`, `dk1.cmd` | vendored self-installing launchers |
-| `dk.u` | workspace script: pinned imports + source-tree asset declarations |
-| `dk-opam-pins.txt` | opam solve pin table (see below) |
-| `dk.opam-lock.jsonc` | the generated, checked-in per-slot dependency lock |
-| `etc/dk/v/…/Ocamlearlybird.Src.values.jsonc` | localized-source form (the in-tree `earlybird` package as one object) |
-| `etc/dk/v/…/Ocamlearlybird.Closure.values.jsonc` | generated driver: one build object per closure package |
-| `etc/dk/v/…/Ocamlearlybird.values.jsonc` | thin final form exposing `bin/ocamlearlybird` |
-| `etc/dk/i/*.values.json` | verified import records (written by `dk1 add`/`update`) |
+| `dk0`, `dk1`, `dk0.cmd`, `dk1.cmd` | vendored self-installing launchers (step 1) |
+| `etc/dk/t/acceptances.json`, `etc/dk/t/capabilities.json` | durable trust records (step 2) |
+| `dk.u` | workspace script: pinned imports + registered asset declarations (steps 3, 5, 6) |
+| `dk-opam-pins.txt` | opam solve pin table, seeded by the quickstart (see below) |
+| `dk.opam-lock.jsonc` | the solved, checked-in per-slot dependency lock (step 5) |
+| `etc/dk/v/…/Ocamlearlybird.Src.values.jsonc` | generated localized-source form (step 5) |
+| `etc/dk/v/…/Ocamlearlybird.Closure.values.jsonc` | generated one-line closure driver (step 5) |
+| `etc/dk/v/…/Ocamlearlybird.values.jsonc` | generated thin final form exposing `bin/ocamlearlybird` (step 5) |
+| `etc/dk/i/*.values.json`, `etc/dk/i/dk-closure-manifest.tsv` | verified import records (steps 3, 4) |
 
-The workflow to (re)generate them:
-
-**1. Start the workspace and add imports with `dk1 add`.** Never hand-write the
-`%% import` blocks. Begin from a no-import `dk.u`, then let dk fetch and pin the
-exact import block (version + multi-hash checksum) for you:
-
-```sh
-env -u GH_TOKEN -u GITHUB_TOKEN \
-  ./dk1 --trust-local-package CommonsLang_OCaml -- add github-l2 dkpkg/CommonsLang_OCaml
-./dk1 update
-```
-
-`dk1 add` writes the pinned import into `dk.u` and a verified import record under
-`etc/dk/i/`; `dk1 update` refreshes the workspace-asset checksums. This is the
-adoption step to teach: you get a reproducible, checksum-pinned dependency on the
-toolchain package without copying magic strings by hand.
-
-**2. Regenerate the lock and driver with `Refresh`.** After a repin (step 1),
-refresh the checked-in lock and per-package driver so they track the imported
-rule versions. The zero-argument form regenerates the driver from the existing
-lock, reading the parameters stamped into the lock and driver, so you never
-re-copy the `GenerateDriver` arguments by hand:
+**Maintenance after adoption.** After a repin or a dependency change, the
+zero-argument `Refresh` regenerates the committed driver from the stamped
+parameters, and `mode=check` validates it read-only (CI-friendly):
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8               # driver only
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 mode=solve    # re-solve the lock, then the driver
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 mode=check    # read-only; nonzero if a driver is stale
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 version=1.3.7 # bump earlybird across formid/version/localsrc
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12               # regenerate the driver
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12 mode=solve    # re-solve the lock, then the driver
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12 mode=check    # read-only; nonzero if a driver is stale
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12 version=1.3.7 # bump earlybird across the coupled ids
 ```
-
-A driver generated before `Dk.OpamLock@1.1.8` has no stamp; adopt it once by
-passing the lock so the recovery can find it, and later runs read the stamp:
-
-```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.8 lock=dk.opam-lock.jsonc
-```
-
-**First-time bootstrap.** Creating the lock from scratch stays the explicit
-`Solve` (write the opam pin table `dk-opam-pins.txt` first; see *The pin table*
-below for the rationale of each line):
-
-```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Solve@1.1.8 \
-  'roots[]=earlybird' 'locals[]=earlybird' opam=t/opam.exe
-```
-
-This writes `dk.opam-lock.jsonc`: a per-slot frozen graph (versions, source
-URLs + checksums, dependency edges, raw opam build/install fields). Measured
-(8 ABI slots): **~1 m 41 s to 2 m 20 s**.
-
-**3. Generate the per-package build driver** from the lock (first-time only;
-afterwards use `Refresh` from step 2, which reads the stamped parameters):
-
-```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateDriver@1.1.8 \
-  lock=dk.opam-lock.jsonc \
-  out=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.Closure.values.jsonc \
-  root=earlybird \
-  formid=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Closure@1.3.6 \
-  pkgpath=NotHackwaly_Ocamlearlybird.Ocamlearlybird version=1.3.6 \
-  rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.18 \
-  localsrc=NotHackwaly_Ocamlearlybird.Ocamlearlybird.Src@1.3.6 \
-  locksrcpath=./dk-opam-lock.jsonc parallel=t
-```
-
-`GenerateDriver@1.1.8` stamps these parameters into the driver's `generated`
-member, so later `Refresh` runs need no hand-copied arguments.
-
-Every opam package in the closure becomes its **own** content-addressed dk object
-built in topological order; `parallel=t` lets dk1 build independent packages
-concurrently, and an interrupted build resumes from the objects already
-completed.
-
-**4. Author the two hand-written forms.** `Ocamlearlybird.Src.values.jsonc`
-assembles the working tree (from the `dk.u` workspace assets) into a single
-`output.zip` object that the generic opam build rule stages as the source of the
-one in-tree package (`earlybird`, marked `local:"t"` in the lock). Then the thin
-`Ocamlearlybird.values.jsonc` republishes the root package's install output as
-`bin/ocamlearlybird` per slot. Both are short and modeled directly on
-CommonsBase_Dk's `MlFrontSource` + final form.
 
 After editing any workspace asset (`dune`, `dune-project`, `earlybird.opam`,
 `src/`, or the lock) run `./dk1 update --no-imports` to refresh the recorded
@@ -379,32 +341,6 @@ set to `None` (the absent/default behaviour), so keeping `dap` at 1.0.6 and
 dropping that one field is behaviour-neutral. Re-bumping `dap` (to get the 1.71
 spec features) is gated on **both** a 5.0–5.3 `Base` toolchain object (not yet
 shipped) **and** the parameterized OpamBuild rule above.
-
-## Suggested dk1 quickstart improvements
-
-Dogfooding the adoption produced concrete, actionable feedback for dk:
-
-1. **`dk1 quickstart ocaml opam` scaffolds a stale import.** It writes a `dk.u`
-   importing `dkpkg/CommonsLang_OCaml` at tag `2.5.202606301755`, while the live
-   registry is on `0.1.2026…`. The `dk1 add` flow this document teaches is the
-   reliable way to get a current, checksum-pinned import, the quickstart recipe
-   should pin to the current tag (or omit the version and resolve it).
-2. **Its `next_steps` text is obsolete.** It prints a `dk0 get-object
-   CommonsLang_OCaml.Dk.OpamLock.Solve -s Release.Agnostic -f dk.opam-lock.jsonc`
-   invocation that no longer matches the current `Solve@1.1.6` dialog (which needs
-   `roots[]=`, a pins file, and `local_opam_dir=`/`opam=`).
-3. **Scaffold `dk-opam-pins.txt`.** The recipe schema already supports
-   `seed_files`; it could drop a commented pins template so new adopters see the
-   pin mechanism immediately.
-4. **Mention the remaining adoption steps** (GenerateDriver + the Src and thin
-   forms) in `next_steps`, since a solve alone does not produce a runnable object.
-
-## Follow-up: document the vendoring scripts
-
-`https://diskuv.com/dk/vendor.sh` (and `vendor.ps1` for Windows) download and
-pin the `dk0`/`dk1` launchers into a repository, but they are **not documented**
-on diskuv.com. Follow-up: get `vendor.sh` / `vendor.ps1` documented alongside the
-`install.sh` / `install.ps1` one-liners.
 
 ## Provenance
 
