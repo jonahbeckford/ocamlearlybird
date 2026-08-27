@@ -5,6 +5,10 @@
       "package": "CommonsLang_OCaml",
       "pubkey_base64": "RWQrGWGcOA3WV93QbuXdm8aAWjDkYvCM5jgFAanfDRiW9n3PzSvLESmR",
       "capabilities": [ "run", "write" ]
+    },
+    {
+      "values_sha256": "9340bd80b1553f040c3449e30e81c5f3ee93be19b57f36dc6774d3e7b7a3fdfe",
+      "capabilities": [ "run", "write" ]
     }
   ]
 }
