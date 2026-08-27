@@ -24,9 +24,6 @@ them run `./dk1 update --no-imports` to refresh the recorded checksums.
   % unified.asset { name="DuneRoot", file="dune" }
   \dk.asset(byteSize: "83", checksum: (sha256: "9a38938be58029f13436cf66d626b20b4fa14ecb32428efe123f93b36df96bac"))\;
 
-  % unified.asset { name="DuneWorkspace", file="dk-src/dune-workspace" }
-  \dk.asset(byteSize: "16", checksum: (sha256: "6dff6804e49533fc19ea7b0fbe988213a210fa7b9a2d5fd5f5b89eed6e380e53"))\;
-
   % unified.asset { name="DuneProject", file="dune-project" }
   \dk.asset(byteSize: "780", checksum: (sha256: "919033718df7d4b1546ef485a7b35d0bcd23a5b97dad73d9f70826d04951e714"))\;
 
