@@ -131,7 +131,7 @@ repository's integration mirrors the reference exemplar `dkpkg/CommonsBase_Dk`
 | `dk-opam-pins.txt`                               | opam solve pin table (see below)                                      |
 | `dk.opam-lock.jsonc`                             | the generated, checked-in per-slot dependency lock                    |
 | `etc/dk/v/…/Ocamlearlybird.Src.values.jsonc`     | localized-source form (the in-tree `earlybird` package as one object) |
-| `etc/dk/v/…/Ocamlearlybird.Closure.values.jsonc` | generated driver: one closure-rule line registering one object per closure package |
+| `etc/dk/v/…/Ocamlearlybird.Closure.values.jsonc` | generated driver: one closure line registering an object per package  |
 | `etc/dk/v/…/Ocamlearlybird.values.jsonc`         | thin final form exposing `bin/ocamlearlybird`                         |
 | `etc/dk/i/*.values.json`                         | verified import records (written by `dk1 add`/`update`)               |
 
@@ -216,7 +216,7 @@ Since `@1.1.11` `GenerateDriver` derives `formid`/`pkgpath`/`version`/`localsrc`
 and the output path from the single `pkg=`, and since `@1.1.12` the `rulefn`
 defaults to the newest `F_BuildLockedClosure` the import declares — so the
 generated driver is the one-line closure form. (Pass an explicit
-`rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.20` to stay on
+`rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.21` to stay on
 the legacy per-package shape.) `GenerateDriver` stamps these parameters into the driver's `generated`
 member, so later `Refresh` runs need no hand-copied arguments. It builds the host
 tools (`ocamlfind`, `ocamlbuild`) at `Release.target_abi` by default, so on a
