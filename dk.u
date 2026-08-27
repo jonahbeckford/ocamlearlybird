@@ -46,12 +46,12 @@ them run `./dk1 update --no-imports` to refresh the recorded checksums.
       sha256: "f932d71bd74c858f40a5ed4a0235434197eed167e17a652d04dfebd81153ec7c",
       sha1: "690f1e81f6ab694a67fcefe4fc393821420b09d6"))\;
 
-  %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml" }
+  %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml", tag="0.1.20260827210837" }
   \dk.import(type: "github-l2", library: "CommonsLang_OCaml",
-    version: "0.1.20260827064619",
-    checksum: (blake2b-256: "cfa2e0569002cbca57c88a89585b2cc5310b7123e119b249b3dd869adc6ac1b1",
-      sha256: "a68e44a7d486a22b14543732522532cce7b6bc4e7986f5a6ce992a989df23058",
-      sha1: "b9415f423379371371f3c5e6882a83577c23fab7"))\;
+    version: "0.1.20260827210837",
+    checksum: (blake2b-256: "c92d5b4768aa1f0064aa0f6d596ee02c57f34355163cdb1417359dc359da07f0",
+      sha256: "f0194bfbacef060825ed849bd5b55f0393be176b0e3ecd247f7d22a99acc905f",
+      sha1: "97faf6d47272fef71b886980c39d4b58c3be9584"))\;
 
   %% import { type="github-l2", repo="dkpkg/CommonsBase_FileMagic" }
   \dk.import(type: "github-l2", library: "CommonsBase_FileMagic",
