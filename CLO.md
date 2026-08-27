@@ -104,10 +104,10 @@ vendored `./dk1` launcher, which self-installs the pinned version on first run.)
 The first run assembles ocamlearlybird's dependency closure: it fetches the
 prebuilt toolchain and the locked dependency objects and builds the `earlybird`
 leaf package from source. Measured on GitHub Actions runners
-(`.github/workflows/measure-performance.yml`), the first run is **~3 m 45 s on
-Linux_x86_64** and **~9 m 35 s on Windows_x86_64**. Subsequent runs are served
-from the local object cache: the warm re-run is **~7 s on Linux_x86_64** and
-**~13 s on Windows_x86_64**.
+(`.github/workflows/measure-performance.yml`), the first run is **~3 m 34 s on
+Linux_x86_64** and **~10 m 25 s on Windows_x86_64**. Subsequent runs are served
+from the local object cache: the warm re-run is **~6 s on Linux_x86_64** and
+**~14 s on Windows_x86_64**.
 
 > **Linux host prerequisites.** Quick Setup compiles native code from source, so
 > the host needs a C toolchain on `PATH`: on Ubuntu or Debian that is `curl` and
@@ -214,7 +214,7 @@ afterwards use `Refresh` from step 2, which reads the stamped parameters):
 
 Since `@1.1.11` `GenerateDriver` derives `formid`/`pkgpath`/`version`/`localsrc`
 and the output path from the single `pkg=`, and since `@1.1.12` the `rulefn`
-defaults to the newest `F_BuildLockedClosure` the import declares — so the
+defaults to the newest `F_BuildLockedClosure` the import declares, so the
 generated driver is the one-line closure form. (Pass an explicit
 `rulefn=CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage@1.0.21` to stay on
 the legacy per-package shape.) `GenerateDriver` stamps these parameters into the driver's `generated`
@@ -383,22 +383,21 @@ The `run-object` finds every object already built and does **zero** local
 compilation: on the consumer side the closure is a range-fetch of prebuilt,
 attested objects that runs on stock Ubuntu.
 
-Measured on GitHub Actions runners (`.github/workflows/measure-performance.yml`):
-fetching the prebuilt closure and running the adapter takes **~3 m 50 s on
-Linux_x86_64** and **~9 m on Windows_x86_64**, and the warm re-run afterward is
-**~7 s** (Linux) and **~13 s** (Windows). That first-run time is close to Quick
-Setup, which already fetches the same dependency objects, and shorter than a
-from-scratch `opam switch create` + `opam install` + `dune build` (**~5 m**
-Linux, **~16 m** Windows), which builds the compiler and every dependency from
-source.
+Measured on GitHub Actions runners (`.github/workflows/measure-performance.yml`),
+with the closure build rule (see *The closure build rule* below): fetching the
+prebuilt closure and running the adapter takes **~2 m 42 s on Linux_x86_64** and
+**~3 m 20 s on Windows_x86_64**, and the warm re-run afterward is **~6 s**
+(Linux) and **~9 s** (Windows). The fetch reaches a runnable binary faster than
+Quick Setup's first build (**~3 m 34 s** Linux, **~10 m 25 s** Windows) and far
+faster than a from-scratch `opam switch create` + `opam install` + `dune build`
+(**~5 m** Linux, **~16 m** Windows), which builds the compiler and every
+dependency from source.
 
-(Those warm re-run figures predate the closure build rule; see
-*The closure build rule* below. Under the per-package driver a warm re-run
-re-instantiated the build rule once per package -- 58 times, each re-decoding
-the whole lock -- which the profiler attributed roughly 9 s of the Windows warm
-run to. The closure driver pays that instantiation once (verified: exactly one
-`FORCE ...{rule}` on a warm run, down from 58, with zero rebuilds), so
-`measure-performance.yml` re-measures the warm figures on the next release.)
+(Under the earlier per-package driver the fetch was ~3 m 50 s Linux / ~9 m
+Windows and the warm re-run ~7 s / ~13 s. A warm re-run re-instantiated the
+build rule once per package, 58 times, each re-decoding the whole lock; the
+closure driver pays that instantiation once, verified as exactly one
+`FORCE ...{rule}` on a warm run with zero rebuilds.)
 
 > **`restore` and pruned releases.** `restore github-l2 ...` bulk-seeds the
 > store by walking the distribution's release chain. As of dk `2.4.2.334` a
@@ -477,8 +476,8 @@ the localized-source object and the local `earlybird` package object, while ever
 external package object stays cached and is reused untouched.
 
 Measured edit-one-file rebuild (edit a log string in `src/main/main.ml`,
-`dk1 update --no-imports`, rebuild) on GitHub Actions runners: **~18 s on
-Linux_x86_64** and **~41 s on Windows_x86_64**. Only the localized-source object
+`dk1 update --no-imports`, rebuild) on GitHub Actions runners: **~21 s on
+Linux_x86_64** and **~48 s on Windows_x86_64**. Only the localized-source object
 and the `earlybird` leaf package object rebuild; the dependency objects stay
 cached.
 
@@ -527,7 +526,7 @@ log string in `src/main/main.ml`):
 | --- | --- |
 | opam venv: edit + `dune build @check` (typecheck) | **~1.9 s** |
 | opam venv: edit + `dune build src/main/main.exe` (native relink) | **~9.3 s** |
-| dk: edit + `dk1 update` + `run-object` (whole package) | **~41 s** (Windows CI; ~18 s Linux, above) |
+| dk: edit + `dk1 update` + `run-object` (whole package) | **~48 s** (Windows CI; ~21 s Linux, above) |
 
 `dune build --display short` after an edit confirms only `main` recompiles and
 the executable relinks, nothing else.
