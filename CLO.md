@@ -118,12 +118,11 @@ closure.
 
 ### Quick Setup for Maintainers
 
-Adopting dk for an existing opam/dune project is **seven typed commands, 446
-characters total**. The commands live as executable, CI-tested files on the
-`claude/adopt-sandbox` branch: `sandbox/reduced/adopt.commands.linux.sh` is the
-canonical copy the character count measures (`.macos.sh` and `.windows.ps1`
-carry the same flow with platform transports), and
-`.github/workflows/adopt-from-scratch.yml` replays all three platforms from
+Adopting dk for an existing opam/dune project is the short command sequence
+below. The commands live as executable, CI-tested files on the `adopt-sandbox`
+branch: `sandbox/reduced/adopt.commands.linux.sh` is the canonical copy
+(`.macos.sh` and `.windows.ps1` carry the same flow with platform transports),
+and `.github/workflows/adopt-from-scratch.yml` replays all three platforms from
 this repository's pre-dk commit. The steps, verbatim:
 
 ```sh
@@ -149,10 +148,10 @@ curl -fsSL https://diskuv.com/dk/vendor.sh | sh
 `ns=` keeps this fork's committed third-party namespace; a maintainer adopting
 their own project omits it and gets a namespace derived from the repository.
 
-The first adoption of this repository took **15 manual steps and 17,518 typed
-characters**: hand-authored values files, hand-registered assets, a hand-edited
-`.gitignore`, and a chain of generator dialogs with redundant arguments. The
-reduced flow generates all of it. What the flow produces (all committed):
+The first adoption of this repository hand-authored the values files,
+hand-registered every asset, hand-edited `.gitignore`, and ran a chain of
+generator dialogs with redundant arguments. The reduced flow generates all of
+it. What the flow produces (all committed):
 
 | File | Role |
 |---|---|
