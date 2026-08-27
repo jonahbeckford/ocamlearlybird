@@ -1,20 +1,19 @@
 name: measure-performance
-# Head-to-head opam-vs-dk timing for the Quick Setup tier, which builds the
-# dependency closure from source, on Linux_x86_64 (ubuntu-latest) and
-# Windows_x86_64 (windows-latest). Each runner measures the host ABI natively.
-# Trigger from the Actions tab (workflow_dispatch) or by pushing a perf-* tag;
-# the perf workflow never runs on push or pull_request, so it stays off the PR
-# status checks.
+# Head-to-head opam-vs-dk timing for the High Performance tier, on the two ABIs
+# it ships as prebuilt objects: Linux_x86_64 (ubuntu-latest) and Windows_x86_64
+# (windows-latest). Each runner measures the host ABI natively, so the warm-run
+# number is the real re-run cost a user sees. Trigger from the Actions tab
+# (workflow_dispatch) or by pushing a perf-* tag; the perf workflow never runs
+# on push or pull_request, so it stays off the PR status checks.
 #
-# Every timed step prints `PHASE <name> ms=<n>` lines and a final SUMMARY line.
-# The dk track and the opam track produce the same runnable binary, so their
-# SUMMARY lines are directly comparable:
-#   dk    fresh -> binary : dk_build_cold  (compiles the whole closure)
+# The dk track resolves the prebuilt object with run-object, which lazily
+# fetches only the requested slot's object from the release. Every timed step
+# prints `PHASE <name> ms=<n>` lines and a final SUMMARY line, comparable to the
+# opam track:
+#   dk    fresh -> binary : dk_fetch_cold  (lazy-fetch prebuilt + materialize)
 #   opam  fresh -> binary : (setup-ocaml step) + opam_deps + opam_build_cold
 #   dk    re-run a binary : dk_run_warm
 #   opam  re-run a binary : opam_run_warm
-#   dk    edit one file    : dk_run_edit    (rebuilds the leaf package object)
-#   opam  edit one file    : opam_build_edit (dune's file-level incremental)
 on:
   workflow_dispatch:
   push:
@@ -32,9 +31,7 @@ jobs:
           - os: windows-latest
             slot: Release.Windows_x86_64
     runs-on: ${{ matrix.os }}
-    # A cold from-source closure build plus native compilation; give the job
-    # generous headroom over the default and the ci.yml jobs.
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -43,7 +40,7 @@ jobs:
 
       # Linux uses the POSIX ./dk1 launcher (curl is present) and date-based
       # millisecond timing.
-      - name: dk cold build + warm run + edit rebuild (timed, Linux)
+      - name: dk fetch + reconcile run + warm run (timed, Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -54,23 +51,31 @@ jobs:
                     -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain >/dev/null; }
           echo "DK MEASURE STARTED $(date -u +%H:%M:%S) slot=$slot"
 
+          # First run lazily fetches the prebuilt object and materializes the
+          # runtime sandbox.
           a=$(now); run; b=$(now)
-          echo "PHASE dk_build_cold ms=$((b-a))"
+          echo "PHASE dk_fetch_cold ms=$((b-a))"
 
+          # Second run reconciles the working tree with the fetched release:
+          # when the tree drifted since the release was harvested (for example
+          # a changed Src value), dk pays a one-time local rebuild here. On an
+          # undrifted tree this equals the warm run.
           c=$(now); run; d=$(now)
-          echo "PHASE dk_run_warm ms=$((d-c))"
+          echo "PHASE dk_run_reconcile ms=$((d-c))"
 
-          printf '\n(* perf measurement touch *)\n' >> src/main/main.ml
-          ./dk1 update --no-imports
+          # Third run: the steady-state warm re-run cost.
           e=$(now); run; f=$(now)
-          echo "PHASE dk_run_edit ms=$((f-e))"
+          echo "PHASE dk_run_warm ms=$((f-e))"
 
-          echo "DK SUMMARY slot=$slot build_cold_ms=$((b-a)) run_warm_ms=$((d-c)) run_edit_ms=$((f-e))"
+          # Flag drift so a reconcile rebuild is never mistaken for warm cost.
+          drifted=f
+          if [ $((d-c)) -gt $(( (f-e) * 3 )) ]; then drifted=t; fi
+          echo "DK SUMMARY slot=$slot fetch_cold_ms=$((b-a)) reconcile_ms=$((d-c)) run_warm_ms=$((f-e)) tree_drifted_from_release=$drifted"
           echo "DK MEASURE DONE $(date -u +%H:%M:%S)"
 
       # Windows uses the dk1.cmd launcher (bootstraps via PowerShell, no curl
       # dependency) and Stopwatch timing.
-      - name: dk cold build + warm run + edit rebuild (timed, Windows)
+      - name: dk fetch + reconcile run + warm run (timed, Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -84,18 +89,20 @@ jobs:
           Write-Host "DK MEASURE STARTED $(Get-Date -Format HH:mm:ss) slot=$slot"
 
           $sw = [System.Diagnostics.Stopwatch]::StartNew(); Run; $cold = $sw.ElapsedMilliseconds
-          Write-Host "PHASE dk_build_cold ms=$cold"
+          Write-Host "PHASE dk_fetch_cold ms=$cold"
 
+          # Second run reconciles the working tree with the fetched release:
+          # a drifted tree pays a one-time local rebuild here. On an undrifted
+          # tree this equals the warm run.
+          $sw.Restart(); Run; $reconcile = $sw.ElapsedMilliseconds
+          Write-Host "PHASE dk_run_reconcile ms=$reconcile"
+
+          # Third run: the steady-state warm re-run cost.
           $sw.Restart(); Run; $warm = $sw.ElapsedMilliseconds
           Write-Host "PHASE dk_run_warm ms=$warm"
 
-          Add-Content -Path src/main/main.ml -Value "`n(* perf measurement touch *)`n"
-          & .\dk1.cmd update --no-imports
-          if ($LASTEXITCODE -ne 0) { throw "update failed ($LASTEXITCODE)" }
-          $sw.Restart(); Run; $edit = $sw.ElapsedMilliseconds
-          Write-Host "PHASE dk_run_edit ms=$edit"
-
-          Write-Host "DK SUMMARY slot=$slot build_cold_ms=$cold run_warm_ms=$warm run_edit_ms=$edit"
+          $drifted = if ($reconcile -gt (3 * $warm)) { 't' } else { 'f' }
+          Write-Host "DK SUMMARY slot=$slot fetch_cold_ms=$cold reconcile_ms=$reconcile run_warm_ms=$warm tree_drifted_from_release=$drifted"
           Write-Host "DK MEASURE DONE $(Get-Date -Format HH:mm:ss)"
 
   opam:

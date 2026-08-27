@@ -1,0 +1,202 @@
+name: NotHackwaly_Ocamlearlybird@1.3.x
+on:
+  push:
+    tags:
+      - '1.3.*' # secrets are tied to version 1.3
+  workflow_dispatch: # allow manual triggering from GitHub page
+
+jobs:
+  # Fail fast if the checked-in opam lock/driver drifted from the imported
+  # CommonsLang_OCaml rule versions (the 2026-08-20 stale-driver incident):
+  # catch it in seconds here instead of hours into the per-package build.
+  refresh-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with: { egress-policy: audit }
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Check opam lock/driver freshness
+        run: >-
+          ./dk1 --dangerously-trust-all dialog
+          CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12 mode=check
+          'drivers[]=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.Closure.values.jsonc'
+          'drivers[]=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.DevPrefix.values.jsonc'
+
+  distribute:
+    needs: refresh-check
+    # The secrets created by `./dk0 prepare-version --ci github VERSION`
+    # are tied to this environment only.
+    environment: dk-distribution
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+            # curl and build-essential are part of ubuntu-24.04 CI runner, so test with:
+            #   docker run -v .:/work --workdir /work -it ubuntu:24.04 bash -c "apt update && apt install -y curl build-essential && sh ./dk0 distribute --actual-in-place --library NotHackwaly_Ocamlearlybird@1.3.99 part1 dist/any.u"
+            #   docker run -v .:/work --workdir /work -it quay.io/pypa/manylinux_2_28_x86_64:2026.07.10-1 sh ./dk0 distribute --actual-in-place --library NotHackwaly_Ocamlearlybird@1.3.99 part1 dist/any.u
+            # Linux_x86 (32-bit) restored 2026-08-15. The lwt C-stub failure
+            # (container compiled stubs 64-bit while ocamlmklib linked
+            # -melf_i386) was the -m32 loss described below: the DkML compiler
+            # baked c_compiler as `gcc -m32`, and dune keeps only the program
+            # word of c_compiler while re-adding args through :standard, which
+            # lwt's src/unix/dune overrides. CommonsLang_OCaml 0.1.20260815220819
+            # (Apparatus@1.0.1 i686 driver shims) names the 32-bitness into a
+            # single-word i686-none-linux-gnu-gcc driver, so the arg can no
+            # longer be dropped. The i686 multilib packages in "Prepare static
+            # libc" are installed for this slot.
+          - runs-on: ubuntu-latest
+            distscript: dist/any.u
+            image: quay.io/pypa/manylinux_2_28_x86_64:2026.07.10-1
+            target-abi: Linux_x86
+          - runs-on: ubuntu-latest
+            distscript: dist/any.u
+            #   RedHat only distributes date versioned manylinux images for a few
+            #   months.
+            #   https://quay.io/repository/pypa/manylinux_2_28_x86_64?tab=tags&tag=latest to
+            #   get a new version.
+            image: quay.io/pypa/manylinux_2_28_x86_64:2026.07.10-1 # glibc 2.28 + gcc 14.2.1: old glibc is highly compatible and works with Node v24.14.0; system gcc will not be needed once GCC bootstrapped in dk0.
+            target-abi: Linux_x86_64
+            # Linux_x86_64_musl is deliberately absent. The musl DkML compiler
+            # binaries are musl-dynamic and need /lib/ld-musl-x86_64.so.1, which
+            # only exists inside CommonsLang_OCaml's own CI container, so every
+            # package built at the musl target ABI dies in OpamBuildWrapper with
+            # exit 127 (cppo is simply the first one to get there). The glibc
+            # Linux_x86_64 slot's relocatability and PIE issues
+            # (dkpkg/CommonsLang_OCaml#2 and #3) are fixed as of release
+            # 0.1.20260820083108, but the musl loader availability blocker is
+            # separate; restore this slot once the musl toolchain runs on a
+            # consumer host.
+          - runs-on: macos-latest
+            distscript: dist/any.u
+            execution-abi: Darwin_arm64
+            target-abi: Darwin_arm64
+          - runs-on: macos-latest
+            distscript: dist/any.u
+            execution-abi: Darwin_arm64
+            target-abi: Darwin_x86_64
+          - runs-on: windows-latest
+            distscript: dist/any.u
+            target-abi: Windows_x86
+          - runs-on: windows-latest
+            distscript: dist/any.u
+            target-abi: Windows_x86_64
+
+    runs-on: ${{ matrix.runs-on }}
+    container:
+      image: ${{ matrix.image }}
+
+    steps:
+      - name: Harden Runner # Optional but recommended
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with: { egress-policy: audit }
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Prepare static libc for the manylinux container
+        if: ${{ matrix.image }}
+        run: dnf install -y glibc-static glibc-static.i686 glibc-devel.i686 libgcc.i686
+
+      - name: Distribute Modules
+        uses: diskuv/dk-distribute@v4
+        with:
+            #   The repo name (ocamlearlybird) is not a valid dk library id, so the
+            #   default `id` (github repo without owner) cannot be used. Pin it to
+            #   the real library id; the version tracks the pushed tag. (dk-distribute@v3
+            #   names this input `id`, not `library`.)
+            id: NotHackwaly_Ocamlearlybird@${{ github.ref_name }}
+            pubkey: ${{ secrets.distribute_1_3_pubkey }}
+            seckey: ${{ secrets.distribute_1_3_seckey }}
+            options: -nosysinc
+            #   All slots publish for restore (store: release). The cross slots
+            #   (target-abi != execution-abi: Linux_x86, Windows_x86,
+            #   Darwin_x86_64) were previously pinned to store: none because dk
+            #   object value-ids did not include the resolved target ABI, so a
+            #   store restored from a previous release could serve host-ABI
+            #   content under a cross slot's id -- the mechanism behind
+            #   1.3.202608152325's mislabeled 64-bit "Linux_x86" binary and the
+            #   1.3.202608160911 lwt 32/64 link failure. dk0 2.4.2.323+ (engine
+            #   fix cfe131821) now mixes the resolved target ABI into a
+            #   cross-built object's value-id, so cross objects key distinctly
+            #   from the host's native build and a shared/restored store can no
+            #   longer contaminate. The consumer dk0 self-updates from the
+            #   manifest (>= 2.4.2.325 is live), so this is now safe.
+            #
+            #   Escape hatch: set the repository variable DK_STORE=none before
+            #   pushing a tag to force a full cold build+publish, then delete it
+            #   to restore incremental releases:
+            #     gh variable set DK_STORE --body none
+            #     gh variable delete DK_STORE
+            #   Needed whenever the driver/recipe changes but the thin leaf's
+            #   values file (and so its value-id) does not: the restored store
+            #   serves the unchanged leaf stale, the new Closure object and the
+            #   Pkg.*.Src bundles its build references never publish, and every
+            #   cold High Performance fetch 404s (release 1.3.202608262345, CI
+            #   run 33026508188). dk0 2.4.2.336+ makes such a distribute fail
+            #   loudly instead of sealing the incomplete set.
+            store: ${{ vars.DK_STORE || 'release' }}
+            distscript: ${{ matrix.distscript }}
+            execution-abi: ${{ matrix.execution-abi }}
+            target-abi: ${{ matrix.target-abi }}
+            #   R8 resumable CI (requires diskuv/dk-distribute >= v4, which
+            #   forwards these to `dk0 distribute --allow-partial --deadline`).
+            #   When the job runs out of time, dk0 publishes the objects it
+            #   finished as a PRERELEASE (a `dk-dist/PARTIAL` marker) instead
+            #   of failing the workflow with nothing published; a later run
+            #   restores that prerelease, resumes, and publishes a full
+            #   release. Keep deadline-minutes comfortably under the job's
+            #   timeout-minutes so the runner stops itself first.
+            # allow-partial: true
+            # deadline-minutes: 300
+            #   If your workspace imports packages other than CommonsBase_Std
+            #   (the built-in dk trust root) and your own package, list them so
+            #   CI can accept their producer keys (dk0 denies unknown producer
+            #   keys by default and CI has no terminal to accept them):
+            #   This workspace's only direct import is CommonsLang_OCaml.
+            #   dist/any.u runs CommonsBase_FileMagic's `file` to verify each
+            #   slot's binary is compiled for its ABI, so its producer key must
+            #   be trusted here too.
+            trust-packages: 'CommonsLang_OCaml CommonsBase_FileMagic'
+            #   Use MlFront HEAD when CI build is not from a tag
+            experimental-mlfront-ref: ${{ github.ref_type != 'tag' && 'HEAD' }}
+            #   Uncomment when testing MlFront
+            # experimental-mlfront-ref: HEAD
+
+  combine:
+    needs: distribute
+    # The secrets created by `./dk0 prepare-version --ci github VERSION`
+    # are tied to this environment only. The combine job uses them to sign
+    # the combined distribution build payload.
+    environment: dk-distribution
+    permissions:
+      contents: write # for action-gh-release
+      id-token: write # for actions/attest-build-provenance
+      attestations: write # for actions/attest-build-provenance
+      #   required but does not work in `act`! bug: https://github.com/nektos/act/issues/6025
+      artifact-metadata: write # for actions/attest-build-provenance
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner # Optional but recommended
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with: { egress-policy: audit }
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Combine Modules
+        uses: diskuv/dk-distribute/combine@v4
+        with:
+            #   Same library-id pin as the distribute job (combine defaults its `id`
+            #   to the repo name too, which is not a valid dk library id here).
+            id: NotHackwaly_Ocamlearlybird@${{ github.ref_name }}
+            pubkey: ${{ secrets.distribute_1_3_pubkey }}
+            seckey: ${{ secrets.distribute_1_3_seckey }}
+
+      # Attests the distribution, publishes the sigstore bundle for values.json
+      # as a release asset, and creates the release. A consumer then fetches
+      # that bundle beside values.json with a plain download, so importing this
+      # release needs no GitHub API token.
+      - name: Attest and Release
+        uses: diskuv/dk-distribute/attest-release@v4
