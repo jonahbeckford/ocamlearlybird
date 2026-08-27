@@ -48,10 +48,10 @@ them run `./dk1 update --no-imports` to refresh the recorded checksums.
 
   %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml" }
   \dk.import(type: "github-l2", library: "CommonsLang_OCaml",
-    version: "0.1.20260827005611",
-    checksum: (blake2b-256: "1573ccc049ca61ba0980371b07825eb1e2186435158142be05a02bf59735f54c",
-      sha256: "ab723fb6214311fb33cc4ef71a5de5eb1a26f8a06959a99a4be85427962c8b67",
-      sha1: "8ae9b51917bfc550d806a2352ef3b93225283b7e"))\;
+    version: "0.1.20260827020029",
+    checksum: (blake2b-256: "df7ddb03751aba4c38a31bcd20c95e383c341203ed93349f5d73fad17565a3d6",
+      sha256: "076c19208e317089a54c5bab5cab22cef45a44adb56e3893b81eeb81554ba0f5",
+      sha1: "d3a44cd469f806cc38c1f5d4ac6e047d86e345a4"))\;
 
   %% import { type="github-l2", repo="dkpkg/CommonsBase_FileMagic" }
   \dk.import(type: "github-l2", library: "CommonsBase_FileMagic",
