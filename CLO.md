@@ -7,18 +7,9 @@ people who maintain this repository's dk integration (**Maintainers**), and it
 is meant to double as a worked, replayable example of adopting dk for an
 existing opam/dune project.
 
-Every command below was run in this repository's CI container and the wall-clock
-timings are the real measured numbers from that machine:
-
-| | |
-|---|---|
-| CPU | Intel(R) Xeon(R) @ 2.80 GHz, 4 vCPUs |
-| Memory | 16 GB |
-| OS | Ubuntu 24.04.4 LTS |
-| Kernel | 6.18.5 (x86_64) |
-
-Timings are illustrative and scale with core count and disk speed; treat them as
-orders of magnitude.
+Timings come from GitHub Actions runners
+(`.github/workflows/measure-performance.yml`); they scale with core count and
+disk speed, so treat them as orders of magnitude.
 
 > **Two launchers, one tool.** dk ships two front-ends: `dk0` (single-threaded,
 > minimal) and `dk1` (multi-threaded, the everyday driver). This project vendors
@@ -31,20 +22,16 @@ orders of magnitude.
 ## Quick Setup
 
 The Quick Setup path builds ocamlearlybird from source **once on your machine**,
-but it is far from a cold `opam install`: the OCaml compiler, Dune, opam, and the
-supporting toolchain arrive as **prebuilt, cryptographically attested,
+on top of a prebuilt toolchain: the OCaml compiler, Dune, opam, and the
+supporting build utilities arrive as **prebuilt, cryptographically attested,
 content-addressed objects** that dk lazily range-fetches from published Diskuv
-package releases, they are never compiled locally. In other words, an existing
-CI-backed dk package (here `dkpkg/CommonsLang_OCaml`, which publishes the OCaml
-toolchain objects) gives you **partial caching** for free. That partial cache,
-the ability to pull an arbitrary, already-built dk package's objects and skip
-rebuilding them, is one of the single biggest benefits of dk1 for opam projects:
-the multi-minute compiler/toolchain build that dominates a from-scratch opam
-switch simply does not happen.
+package releases. An existing CI-backed dk package (here
+`dkpkg/CommonsLang_OCaml`, which publishes the OCaml toolchain objects) gives
+you that **partial caching** for free.
 
-What you still build locally in Quick Setup is ocamlearlybird's own opam
-dependency closure (lwt, dap, menhir, ppxlib, …) plus ocamlearlybird itself, each
-as its own cached dk object.
+What you build locally in Quick Setup is ocamlearlybird's own opam dependency
+closure (lwt, dap, menhir, ppxlib, …) plus ocamlearlybird itself, each as its
+own cached dk object.
 
 ### Quick Setup for Users
 
@@ -57,8 +44,6 @@ with signify + SHA-256):
 curl -fsSL https://diskuv.com/dk/install.sh | sh
 # Windows PowerShell:  irm https://diskuv.com/dk/install.ps1 | iex
 ```
-
-Measured: **~5 s**.
 
 (If you cloned this repository you can skip the install entirely and use the
 vendored `./dk1` launcher, which self-installs the pinned version on first run.)
@@ -75,19 +60,21 @@ vendored `./dk1` launcher, which self-installs the pinned version on first run.)
 - `-s Release.Linux_x86_64` selects the ABI slot (swap for `Release.Darwin_arm64`
   etc. on other hosts).
 - `-m bin/ocamlearlybird.exe` selects the member of the built object to execute.
-- everything after `--` is passed to the adapter.
+- everything after `--` is passed to the debug adapter.
 
-The first run assembles ocamlearlybird's dependency closure: it fetches the
-prebuilt toolchain and the locked dependency objects and builds the `earlybird`
-leaf package from source. Measured on GitHub Actions runners
-(`.github/workflows/measure-performance.yml`), the first run is **~3 m 34 s on
-Linux_x86_64** and **~10 m 25 s on Windows_x86_64**. Subsequent runs are served
-from the local object cache: the warm re-run is **~6 s on Linux_x86_64** and
-**~14 s on Windows_x86_64**.
+The first run fetches the prebuilt toolchain, builds the locked dependency
+closure and the `earlybird` package, and runs the result. Subsequent runs are
+served from the local object cache:
 
-### Compared with a plain opam + dune setup
+| Step | Linux_x86_64 | Windows_x86_64 |
+| --- | --- | --- |
+| Install dk1 | ~5 s | ~5 s |
+| First run (fetch toolchain + build closure) | ~3 m 34 s | ~10 m 25 s |
+| Warm re-run | ~6 s | ~14 s |
 
-Building the same binary the standard way (`opam switch create`,
+### Compared with a conventional opam + dune setup
+
+Building the same binary the conventional way (`opam switch create`,
 `opam install . --deps-only`, `dune build`) reaches a runnable binary more
 slowly but then keeps a much faster inner loop. Measured on the same runners
 (the `opam` figures include the switch create and compiler install):
@@ -102,43 +89,31 @@ slowly but then keeps a much faster inner loop. Measured on the same runners
 | Windows: edit one file, rebuild | ~48 s | ~1.5 s |
 
 dk reaches a runnable binary first because it fetches the prebuilt, attested
-toolchain and dependency objects while opam builds the compiler and every
-dependency from source. Once built, dune's persistent `_build` gives a
-sub-second inner loop, so a developer iterating on source is fastest under
-`dune build -w` against a switch that reuses dk's already-built dependency
-closure.
-
-> **Linux host prerequisites.** Quick Setup compiles native code from source, so
-> the host needs a C toolchain on `PATH`: on Ubuntu or Debian that is `curl` and
-> `build-essential`. As of `CommonsLang_OCaml` release `0.1.20260820083108` the
-> DkML toolchain objects bake bare `PATH`-resolved tool names (`gcc`, `as`) and
-> ship a PIC runtime, so native compilation and linking succeed on stock
-> PIE-default hosts (Ubuntu 24.04, Debian 12+) with the system toolchain and no
-> further setup.
+toolchain while opam builds the compiler and every dependency from source. Once
+built, dune's persistent `_build` gives a sub-second inner loop, so a developer
+iterating on source is fastest under `dune build -w` against a switch that
+reuses dk's already-built dependency closure.
 
 ### Quick Setup for Maintainers
 
 Adopting dk for an existing opam/dune project is the command sequence below,
-shown for Linux. On macOS swap the slot in step 7 (`Release.Darwin_arm64`); on
+shown for Linux. On macOS swap the slot in step 6 (`Release.Darwin_arm64`); on
 Windows use PowerShell, `irm https://diskuv.com/dk/vendor.ps1 | iex` for step 1,
 and `.\dk1.cmd` for the rest.
 
 ```sh
 # 1. vendor the dk0/dk1 launchers into the repo
 curl -fsSL https://diskuv.com/dk/vendor.sh | sh
-# 2. durably accept the producer keys (the quickstart scaffold also imports
-#    the CommonsBase_Build support package, so accept its key too)
-./dk1 trust accept CommonsLang_OCaml --run --write
-./dk1 trust accept CommonsBase_Build
-# 3. scaffold dk.u, seed the pin table and .gitattributes, import the toolchain
+# 2. scaffold dk.u, seed the pin table and .gitattributes, record the recipe's
+#    declared trust statements, and import the toolchain
 ./dk1 quickstart ocaml opam414
-# 4. fetch and verify the toolchain import
+# 3. fetch and verify the toolchain import
 ./dk1 update
-# 5. adopt: solve the lock, generate the build forms, register the assets
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Adopt@1.1.11 version=1.3.6 unit=Ocamlearlybird ns=NotHackwaly_Ocamlearlybird
-# 6. recompute the checksums of the registered workspace assets
+# 4. adopt: solve the lock, generate the build forms, register the assets
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Adopt@1.1.14 version=1.3.6 unit=Ocamlearlybird ns=NotHackwaly_Ocamlearlybird
+# 5. recompute the checksums of the registered workspace assets
 ./dk1 update
-# 7. build and run the debug adapter
+# 6. build and run the debug adapter
 ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
   -s Release.Linux_x86_64 -m ./bin/ocamlearlybird.exe -- --help=plain
 ```
@@ -154,25 +129,25 @@ it. What the flow produces (all committed):
 | File | Role |
 |---|---|
 | `dk0`, `dk1`, `dk0.cmd`, `dk1.cmd` | vendored self-installing launchers (step 1) |
-| `etc/dk/t/acceptances.json`, `etc/dk/t/capabilities.json` | durable trust records (step 2) |
-| `dk.u` | workspace script: pinned imports + registered asset declarations (steps 3, 5, 6) |
+| `etc/dk/t/acceptances.json`, `etc/dk/t/capabilities.json` | trust records from the recipe's declared trust statements (step 2) |
+| `dk.u` | workspace script: pinned imports + registered asset declarations (steps 2, 4, 5) |
 | `dk-opam-pins.txt` | opam solve pin table, seeded by the quickstart (see below) |
 | `dk-src/dune-workspace` | dune workspace root marker staged into the assembled source |
-| `dk.opam-lock.jsonc` | the solved, checked-in per-slot dependency lock (step 5) |
-| `etc/dk/v/…/Ocamlearlybird.Src.values.jsonc` | generated localized-source form (step 5) |
-| `etc/dk/v/…/Ocamlearlybird.Closure.values.jsonc` | generated one-line closure driver (step 5) |
-| `etc/dk/v/…/Ocamlearlybird.values.jsonc` | generated thin final form exposing `bin/ocamlearlybird` (step 5) |
-| `etc/dk/i/*.values.json`, `etc/dk/i/dk-closure-manifest.tsv` | verified import records (steps 3, 4) |
+| `dk.opam-lock.jsonc` | the solved, checked-in per-slot dependency lock (step 4) |
+| `etc/dk/v/…/Ocamlearlybird.Src.values.jsonc` | generated localized-source form (step 4) |
+| `etc/dk/v/…/Ocamlearlybird.Closure.values.jsonc` | generated one-line closure driver (step 4) |
+| `etc/dk/v/…/Ocamlearlybird.values.jsonc` | generated thin final form exposing `bin/ocamlearlybird` (step 4) |
+| `etc/dk/i/*.values.json`, `etc/dk/i/dk-closure-manifest.tsv` | verified import records (steps 2, 3) |
 
 **Maintenance after adoption.** After a repin or a dependency change, the
 zero-argument `Refresh` regenerates the committed driver from the stamped
 parameters, and `mode=check` validates it read-only (CI-friendly):
 
 ```sh
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12               # regenerate the driver
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12 mode=solve    # re-solve the lock, then the driver
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12 mode=check    # read-only; nonzero if a driver is stale
-./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.12 version=1.3.7 # bump earlybird across the coupled ids
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.14               # regenerate the driver
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.14 mode=solve    # re-solve the lock, then the driver
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.14 mode=check    # read-only; nonzero if a driver is stale
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.14 version=1.3.7 # bump earlybird across the coupled ids
 ```
 
 After editing any workspace asset (`dune`, `dune-project`, `earlybird.opam`,
@@ -181,56 +156,18 @@ checksums in `dk.u`, then rebuild, see *Editing a file and rebuilding*.
 
 #### The pin table (`dk-opam-pins.txt`)
 
-The pin table steers the opam solver. Its purpose is **not** to change what
-ocamlearlybird depends on, `earlybird.opam` deliberately keeps *relaxed* version
-constraints so the package stays installable for the whole worldwide opam
-userbase, and the pin table must not tighten those. Instead the pins **converge
-every maintainer and every CI run on the same resolved versions**, which is what
-makes the content-addressed object cache hit: two people who solve the same
-closure to the same versions produce the same object ids and therefore share
-(and reuse) built objects. Pins raise cache hit rates without touching the opam
-file's public constraints.
-
-Each line, and the methodology for deriving your own:
+The quickstart seeds the pin table, and the
+[dk for opam users guide](https://diskuv.com/dk/docs/OPAM/) explains its line
+forms and purpose. This repository makes one change to the seeded table: the
+`repo default` line pins the opam-repository to a single commit,
 
 ```
 repo default git+https://github.com/ocaml/opam-repository.git#4f41495f12b15921ce982ac208c41b257d295515
 ```
-> **Pin the opam-repository to one commit.** The solved closure is only
-> reproducible run-to-run if the package index it solved against is fixed. Pin
-> `default` to a specific opam-repository commit (here, master as of
-> 2026-08-08). *Methodology:* use the commit your project's CI last validated
-> against; bump it deliberately and re-solve.
 
-```
-pin ocaml 4.14.3
-pin ocaml-base-compiler 4.14.3
-```
-> **Pin the compiler to the toolchain's version.** The per-package build rule
-> (`CommonsLang_OCaml.Dk.OpamBuild`) compiles every package with the relocatable
-> `CommonsLang_OCaml.DkML@4.14.3` toolchain, so the lock must resolve the 4.14.x
-> dependency closure. Without this pin the solver picks the newest OCaml (5.x)
-> and selects 5.x-only package versions that would not compile under 4.14.3.
-> *Methodology:* pin `ocaml` **and** its implementation package
-> (`ocaml-base-compiler`) to exactly the compiler version your dk toolchain
-> object provides.
-
-```
-pin dune 3.23.1
-```
-> **Pin every toolchain-provided tool to the version dk ships.** The toolchain
-> provides `CommonsLang_OCaml.Dune@3.23.1`, which lags opam-repository master. An
-> unpinned solve pulls packages (e.g. `dune-configurator` 3.24.x) that declare
-> `dune {>= "3.24"}` and ship `(lang dune 3.24)`, which the provided Dune 3.23.1
-> refuses ("Version 3.24 of the dune language is not supported"). Pinning `dune`
-> to the provided version makes the solver choose dune-3.23-compatible package
-> versions. *Methodology (general rule):* for every build tool the dk toolchain
-> provides (ocaml, dune, and any future additions), pin the opam package to the
-> exact version dk ships, so the solved closure matches what actually builds it.
-
-The pin-file grammar also supports `float NAME` (drop a pin inherited from an
-existing switch) and `archexclude NAME ARCH` (exclude a package on one ABI); this
-project needs neither.
+so every maintainer and every CI run solves against the same package index and
+produces the same lock. Bump the commit deliberately, then re-solve with
+`Refresh mode=solve`.
 
 ---
 
@@ -238,13 +175,7 @@ project needs neither.
 
 ## Editing a file and rebuilding
 
-A natural question for an incremental build tool: after editing a source file,
-does dk need an explicit *invalidate* command, or an `--integrity` option, to
-notice the change?
-
-**Neither.** `invalidate` (`-x`) is a manual escape hatch, and `--integrity`
-(`none|existence|checksum`) tunes value-store integrity checking, they are not
-the edit-rebuild mechanism. The documented flow is:
+The supported flow after editing a source file:
 
 ```sh
 # edit e.g. src/main/main.ml, then:
@@ -259,60 +190,41 @@ content-addressed, only the objects whose inputs actually changed rebuild, here
 the localized-source object and the local `earlybird` package object, while every
 external package object stays cached and is reused untouched.
 
-Measured edit-one-file rebuild (edit a log string in `src/main/main.ml`,
-`dk1 update --no-imports`, rebuild) on GitHub Actions runners: **~21 s on
-Linux_x86_64** and **~48 s on Windows_x86_64**. Only the localized-source object
-and the `earlybird` leaf package object rebuild; the dependency objects stay
-cached.
+Measured (edit a log string in `src/main/main.ml`, `dk1 update --no-imports`,
+rebuild):
 
-## Cached vs rebuilt opam packages
+| Step | Linux_x86_64 | Windows_x86_64 |
+| --- | --- | --- |
+| Edit one file, rebuild | ~21 s | ~48 s |
 
-What actually gets built from source, and what arrives prebuilt?
+## What gets cached
 
-**Never built locally (fetched as prebuilt, attested objects):**
+| Piece | Quick Setup source |
+| --- | --- |
+| OCaml compiler toolchain (`CommonsLang_OCaml.DkML@4.14.3`) | fetched prebuilt from the `dkpkg` release |
+| Dune (`CommonsLang_OCaml.Dune@3.23.1`) | fetched prebuilt from the `dkpkg` release |
+| opam and the build utilities (coreutils, 7-Zip, GNU make) | fetched prebuilt from the `dkpkg` releases |
+| MSYS2 runtime (Windows slots) | fetched prebuilt from the `dkpkg` release |
+| The 53 locked dependency packages (lwt, dap, menhir, ppxlib, …) | built locally once, then cached |
+| The in-tree `earlybird` package | built locally, rebuilt on source edits |
+| Localized source and final executable forms | built locally (copy and archive steps) |
 
-- the OCaml compiler (`CommonsLang_OCaml.DkML@4.14.3`, all ABI slots),
-- Dune (`CommonsLang_OCaml.Dune@3.23.1`), opam, coreutils, 7-Zip, and the other
-  build utilities,
+dk object ids are *recipe* addresses (a hash of the values-file content, the
+`module@version`, and the slot), and the recipe embeds this project's namespace,
+so another project's cache of the same opam package serves no hits here. A
+project's own prior releases are the cache that pays off for the dependency
+packages, which is what the High Performance CI path sets up.
 
-all lazily range-fetched from published `dkpkg` releases. This is the "partial
-caching from an arbitrary CI-backed dk package" that makes Quick Setup fast.
+## Supported OCaml versions
 
-**Built from source locally (once, then cached):** ocamlearlybird's opam
-dependency closure, **53** packages including lwt, dap,
-menhir, ppxlib, ppx_deriving_yojson, sexplib/num, yojson, plus the in-tree
-`earlybird` package. Each becomes its own cached object, so the second build (and
-every incremental build after an edit) reuses all of them.
+This build compiles ocamlearlybird with OCaml 4.14.3 (the
+`CommonsLang_OCaml.DkML@4.14.3` toolchain). A bytecode debugger must be built
+with the same compiler version as the program it debugs, so this build debugs
+programs compiled with OCaml 4.14.x.
 
-**On cross-project cache sharing:** dk object ids are *recipe* addresses, a hash
-of the values-file content, the `module@version`, and the slot, and the recipe
-embeds this project's namespace (`NotHackwaly_Ocamlearlybird`). So this project's
-`…Pkg.Lwt@…` object cannot alias `CommonsBase_Dk.Dk1.Pkg.Lwt@…`; running
-`dk1 restore github-l2 dkpkg/CommonsBase_Dk` (measured **~2 m**) seeds the
-toolchain objects but yields **zero** hits on the per-package `Pkg.*` objects.
-The mechanism that *does* pay off for a project's own dependency objects is
-restoring against **its own** prior releases, which is exactly what the High
-Performance CI path sets up.
-
-## DkML 4.14 vs OCaml (Base) 5.5
-
-Can this build target OCaml 5.5 instead of 4.14?
-
-`CommonsLang_OCaml` ships **both** a relocatable `DkML@4.14.3` toolchain and
-newer `Base@5.5.0` / `Base@5.4.1` compiler objects, and the 5.5 objects are real
-and runnable (`dk1 run-object CommonsLang_OCaml.Base@5.5.0 … -m bin/ocamlopt`).
-**However**, the per-package opam build rule
-(`CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedPackage`) is currently **hardwired
-to `DkML@4.14.3`** (`ocaml:version = "4.14.3"` is baked into the rule, and the
-solve helper is compiled with 4.14.3). So *today*, the Quick Setup opam pipeline
-is 4.14.3-only.
-
-This matters for a debug adapter specifically: a bytecode debugger must match the
-**debuggee's** compiler version. ocamlearlybird itself supports 4.12 → 5.5, so a
-4.14.3-built adapter debugs 4.14.x programs. Targeting a 5.5 debuggee needs a 5.5
-adapter, which needs an OpamBuild rule that parameterizes the toolchain rather
-than hardwiring 4.14.3. The **High Performance** path (PR 2) is where the 5.5
-route is exercised in CI.
+To debug a program compiled with a different OCaml version, build ocamlearlybird
+with that compiler using upstream's opam instructions (ocamlearlybird itself
+supports OCaml 4.12 through 5.5); the dk pipeline here builds with 4.14.3.
 
 ### Why `dap` is held at `{>= "1.0.6" & < "1.1.0"}`
 
@@ -325,20 +237,20 @@ branch's source does not set the RunInTerminal field that `dap` 1.1.0's record
 type requires, so a plain `opam install` that selects `dap` 1.1.0 (which current
 opam-repository permits on many compilers) fails to compile
 (`Some record fields are undefined: args_can_be_interpreted_by_shell`). The
-bound makes the opam metadata state what the source can actually build against. Solving the closure (with `Solve@1.1.5`, which already filters
-test-only edges) gives, per pinned OCaml:
+bound makes the opam metadata state what the source can actually build against.
+Solving the closure per pinned OCaml gives:
 
-- `ocaml 4.14.3` → no solution, closure requires `ocaml (< 4.14.3 | >= 5.0)`;
-- `ocaml 5.5.0`  → no solution, closure requires `ocaml < 5.4`;
-- `dap 1.1.0` pinned on `ocaml 4.14.3` → no dap satisfies.
+| Pinned solve | Result |
+| --- | --- |
+| `ocaml 4.14.3` | no solution; the closure requires `ocaml (< 4.14.3 \| >= 5.0)` |
+| `ocaml 5.5.0` | no solution; the closure requires `ocaml < 5.4` |
+| `dap 1.1.0` on `ocaml 4.14.3` | no `dap` satisfies |
 
-So the feasible OCaml window is `< 4.14.3` **or** `[5.0, 5.4)`, and
-`CommonsLang_OCaml` ships Base objects only at 4.14.3 / 5.4.1 / 5.5.0, none in
-that window. The `args_can_be_interpreted_by_shell` field is DAP-optional and was
-set to `None` (the absent/default behaviour), so keeping `dap` at 1.0.6 and
-dropping that one field is behaviour-neutral. Re-bumping `dap` (to get the 1.71
-spec features) is gated on **both** a 5.0–5.3 `Base` toolchain object (not yet
-shipped) **and** the parameterized OpamBuild rule above.
+So the feasible OCaml window for `dap` 1.1.0 is `< 4.14.3` or `[5.0, 5.4)`, and
+`CommonsLang_OCaml` ships compiler objects only at 4.14.3 / 5.4.1 / 5.5.0. The
+`args_can_be_interpreted_by_shell` field is DAP-optional and was set to `None`
+(the absent/default behaviour), so keeping `dap` at 1.0.6 and dropping that one
+field is behaviour-neutral.
 
 ## Provenance
 
