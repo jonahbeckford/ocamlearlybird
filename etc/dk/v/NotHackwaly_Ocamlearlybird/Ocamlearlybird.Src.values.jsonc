@@ -6,12 +6,12 @@
 // (do not hand-edit) when the source tree or lock changes.
 //
 // Regenerate with:
-//   dk0 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateSrc@1.1.14 pkg=NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6
+//   dk0 dialog CommonsLang_OCaml.Dk.OpamLock.GenerateSrc@1.1.16 pkg=NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6
 {
   "$schema": "https://diskuv.com/dk/schema/dk-value-1.0.json",
   "schema_version": { "major": 1, "minor": 0 },
   "generated": {
-    "tool": "CommonsLang_OCaml.Dk.OpamLock.GenerateSrc@1.1.14",
+    "tool": "CommonsLang_OCaml.Dk.OpamLock.GenerateSrc@1.1.16",
     "pkg": "NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6",
     "root": "earlybird",
     "srcdirs": ["src"],
@@ -56,8 +56,7 @@
             "${SLOT.request}/dk-opam-lock.jsonc"
           ],
           [
-            "$(get-object CommonsBase_Std.S7z@25.1.0 -s Release.execution_abi -e '*' -d :)/7zz.exe",
-            "a", "-tzip", "${SLOT.request}/output.zip", "./earlybird-1.3.6"
+            "--zip", "${SLOT.request}/output.zip", "earlybird-1.3.6"
           ]
         ]
       },
