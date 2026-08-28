@@ -384,12 +384,10 @@ attested objects that runs on stock Ubuntu.
 
 Measured on GitHub Actions runners (`.github/workflows/measure-performance.yml`),
 with the closure build rule (see *The closure build rule* below): fetching the
-prebuilt closure and running the adapter takes **~2 m 21 s on Linux_x86_64** and
-**~3 m 54 s on Windows_x86_64**. The warm re-run afterward is currently
-**~21 s** (Linux) and **~52 s** (Windows): a fetched store re-derives trace
-state on every re-run, which is under investigation. A locally built store
-(Quick Setup) re-runs warm in **~6 s / ~13 s**. The fetch reaches a runnable
-binary faster than
+prebuilt closure and running the adapter takes **~3 m 20 s on Linux_x86_64** and
+**~3 m 33 s on Windows_x86_64**, and the warm re-run afterward is **~6 s**
+(Linux) and **~14 s** (Windows). The fetch reaches a runnable binary faster
+than
 Quick Setup's first build (**~3 m 34 s** Linux, **~10 m 25 s** Windows) and far
 faster than a from-scratch `opam switch create` + `opam install` + `dune build`
 (**~5 m** Linux, **~16 m** Windows), which builds the compiler and every

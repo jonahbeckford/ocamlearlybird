@@ -72,7 +72,7 @@ jobs:
           f=$(now)
           echo "PHASE dk_run_warm ms=$((f-e))"
           silent=t
-          grep -q "save tracestore" "$RUNNER_TEMP/warm3.log" && silent=f
+          grep "save tracestore" "$RUNNER_TEMP/warm3.log" | grep -qv "skipped" && silent=f
 
           # Flag drift so a reconcile rebuild is never mistaken for warm cost.
           drifted=f
@@ -113,7 +113,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "run-object failed ($LASTEXITCODE)" }
           $warm = $sw.ElapsedMilliseconds
           Write-Host "PHASE dk_run_warm ms=$warm"
-          $silent = if (Select-String -Path $warmlog -Pattern 'save tracestore' -Quiet) { 'f' } else { 't' }
+          $silent = if (Select-String -Path $warmlog -Pattern 'save tracestore' | Where-Object { $_.Line -notmatch 'skipped' }) { 'f' } else { 't' }
 
           $drifted = if ($reconcile -gt (3 * $warm)) { 't' } else { 'f' }
           Write-Host "DK SUMMARY slot=$slot fetch_cold_ms=$cold reconcile_ms=$reconcile run_warm_ms=$warm tree_drifted_from_release=$drifted warm_silent=$silent"
