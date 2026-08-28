@@ -1,13 +1,14 @@
 # Building ocamlearlybird with the dk build tool
 
 This document explains how to build the `ocamlearlybird` OCaml debug adapter
-with [dk](https://diskuv.com/dk), Diskuv's content-addressed build tool. It is
+with [dk](https://diskuv.com/dk), a Windows-friendly, incremental, remote
+cacheable build system. It is
 written for two audiences, people who just want the binary (**Users**) and
 people who maintain this repository's dk integration (**Maintainers**), and it
 is meant to double as a worked, replayable example of adopting dk for an
 existing opam/dune project.
 
-Timings come from GitHub Actions runners
+Timings come from GitHub Actions runners running dk 2.4.2.342
 (`.github/workflows/measure-performance.yml`); they scale with core count and
 disk speed, so treat them as orders of magnitude.
 
@@ -69,8 +70,8 @@ served from the local object cache:
 | Step | Linux_x86_64 | Windows_x86_64 |
 | --- | --- | --- |
 | Install dk1 | ~5 s | ~5 s |
-| First run (fetch toolchain + build closure) | ~3 m 34 s | ~10 m 25 s |
-| Warm re-run | ~6 s | ~14 s |
+| First run (fetch toolchain + build closure) | ~3 m 52 s | ~10 m 26 s |
+| Warm re-run | ~6 s | ~13 s |
 
 ### Compared with a conventional opam + dune setup
 
@@ -81,12 +82,12 @@ slowly but then keeps a much faster inner loop. Measured on the same runners
 
 | Step | dk Quick Setup | opam + dune |
 | --- | --- | --- |
-| Linux: fresh checkout to a runnable binary | ~3 m 34 s | ~5 m |
+| Linux: fresh checkout to a runnable binary | ~3 m 52 s | ~5 m |
 | Linux: re-run the built binary | ~6 s | ~0.1 s |
-| Linux: edit one file, rebuild | ~21 s | ~0.2 s |
-| Windows: fresh checkout to a runnable binary | ~10 m 25 s | ~16 m |
-| Windows: re-run the built binary | ~14 s | ~1.3 s |
-| Windows: edit one file, rebuild | ~48 s | ~1.5 s |
+| Linux: edit one file, rebuild | ~18 s | ~0.2 s |
+| Windows: fresh checkout to a runnable binary | ~10 m 26 s | ~15 m |
+| Windows: re-run the built binary | ~13 s | ~1.2 s |
+| Windows: edit one file, rebuild | ~48 s | ~1.4 s |
 
 dk reaches a runnable binary first because it fetches the prebuilt, attested
 toolchain while opam builds the compiler and every dependency from source. Once
@@ -195,7 +196,7 @@ rebuild):
 
 | Step | Linux_x86_64 | Windows_x86_64 |
 | --- | --- | --- |
-| Edit one file, rebuild | ~21 s | ~48 s |
+| Edit one file, rebuild | ~18 s | ~48 s |
 
 ## What gets cached
 
