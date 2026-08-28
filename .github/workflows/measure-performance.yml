@@ -63,16 +63,15 @@ jobs:
           c=$(now); run; d=$(now)
           echo "PHASE dk_run_reconcile ms=$((d-c))"
 
-          # Third run: the steady-state warm re-run cost. Capture output: a
-          # healthy warm run is silent (no trace-store save); any dk activity
-          # here means every consumer re-run pays it.
-          e=$(now)
-          ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
-            -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain >"$RUNNER_TEMP/warm3.log" 2>&1
-          f=$(now)
+          # Third run: the steady-state warm re-run cost. A healthy warm run
+          # leaves the trace store byte-identical (the engine cram's invariant),
+          # so hash it before and after instead of parsing progress messages.
+          h1=$(md5sum t/d/cts.1/trace | cut -d' ' -f1)
+          e=$(now); run; f=$(now)
           echo "PHASE dk_run_warm ms=$((f-e))"
+          h2=$(md5sum t/d/cts.1/trace | cut -d' ' -f1)
           silent=t
-          if grep "save tracestore" "$RUNNER_TEMP/warm3.log" | grep -v "skipped" | head -5 | sed 's/^/WARM_ACTIVITY: /' | grep .; then silent=f; fi
+          [ "$h1" != "$h2" ] && silent=f
 
           # Flag drift so a reconcile rebuild is never mistaken for warm cost.
           drifted=f
@@ -104,18 +103,14 @@ jobs:
           $sw.Restart(); Run; $reconcile = $sw.ElapsedMilliseconds
           Write-Host "PHASE dk_run_reconcile ms=$reconcile"
 
-          # Third run: the steady-state warm re-run cost. Capture output: a
-          # healthy warm run is silent (no trace-store save).
-          $warmlog = Join-Path $env:RUNNER_TEMP 'warm3.log'
-          $sw.Restart()
-          & .\dk1.cmd run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 `
-            -s $slot -m ./bin/ocamlearlybird.exe -- --help=plain *> $warmlog
-          if ($LASTEXITCODE -ne 0) { throw "run-object failed ($LASTEXITCODE)" }
-          $warm = $sw.ElapsedMilliseconds
+          # Third run: the steady-state warm re-run cost. A healthy warm run
+          # leaves the trace store byte-identical (the engine cram's invariant),
+          # so hash it before and after instead of parsing progress messages.
+          $h1 = (Get-FileHash -Algorithm MD5 t\d\cts.1\trace).Hash
+          $sw.Restart(); Run; $warm = $sw.ElapsedMilliseconds
           Write-Host "PHASE dk_run_warm ms=$warm"
-          $saves = Select-String -Path $warmlog -Pattern 'save tracestore' | Where-Object { $_.Line -notmatch 'skipped' } | Select-Object -First 5
-          $saves | ForEach-Object { Write-Host "WARM_ACTIVITY: $($_.Line)" }
-          $silent = if ($saves) { 'f' } else { 't' }
+          $h2 = (Get-FileHash -Algorithm MD5 t\d\cts.1\trace).Hash
+          $silent = if ($h1 -ne $h2) { 'f' } else { 't' }
 
           $drifted = if ($reconcile -gt (3 * $warm)) { 't' } else { 'f' }
           Write-Host "DK SUMMARY slot=$slot fetch_cold_ms=$cold reconcile_ms=$reconcile run_warm_ms=$warm tree_drifted_from_release=$drifted warm_silent=$silent"
