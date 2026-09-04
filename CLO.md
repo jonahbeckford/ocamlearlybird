@@ -78,7 +78,8 @@ served from the local object cache:
 Building the same binary the conventional way (`opam switch create`,
 `opam install . --deps-only`, `dune build`) reaches a runnable binary more
 slowly but then keeps a much faster inner loop. Measured on the same runners
-(the `opam` figures include the switch create and compiler install):
+with dk 2.4.2.342 and opam 2.5.2 (the `opam` figures include the switch create
+and compiler install):
 
 | Step | dk Quick Setup | opam + dune |
 | --- | --- | --- |
