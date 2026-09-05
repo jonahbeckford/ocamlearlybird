@@ -16,6 +16,19 @@ name: measure-performance
 #   opam  re-run a binary : opam_run_warm
 on:
   workflow_dispatch:
+    inputs:
+      opam_cache:
+        description: >-
+          Whether setup-ocaml may restore its opam switch from the Actions cache.
+          Leave it at true for an ordinary run. Set it to false to measure the
+          cold-cache side of the opam track: this input is the only thing that
+          separates the two modes, and the published fresh-checkout figure differs
+          by roughly a factor of two between them.
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+        default: 'true'
   push:
     tags:
       - 'perf-*'
@@ -214,6 +227,12 @@ jobs:
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 4.14.x
+          # Stated explicitly so the two cache modes are selectable. setup-ocaml's own
+          # default is true, which the run logs echo as `cache: true`, so an ordinary
+          # dispatch measures exactly what it measured before this input existed and the
+          # existing cache-mode samples stay valid. A tag-triggered run carries no inputs,
+          # so the expression falls back to 'true' rather than to an empty string.
+          cache: ${{ inputs.opam_cache || 'true' }}
 
       - name: opam setup + deps + dune build cold/warm/edit (timed)
         shell: bash
