@@ -68,6 +68,22 @@ jobs:
           echo "DK SUMMARY slot=$slot build_cold_ms=$((b-a)) run_warm_ms=$((d-c)) run_edit_ms=$((f-e))"
           echo "DK MEASURE DONE $(date -u +%H:%M:%S)"
 
+          # The same three readings, machine readable, for the gate job. Written
+          # AFTER every stopwatch has stopped and outside the working tree, so it
+          # cannot move a number: an earlier repair to this workflow moved console
+          # writes inside a stopwatch and widened five of six Windows cells.
+          mkdir -p "$RUNNER_TEMP/dk-phases"
+          printf 'dk_build_cold=%s\ndk_run_warm=%s\ndk_run_edit=%s\n' \
+            "$((b-a))" "$((d-c))" "$((f-e))" > "$RUNNER_TEMP/dk-phases/$slot.txt"
+
+      - name: Upload this slot's readings for the gate
+        if: ${{ always() && runner.os == 'Linux' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dk-phases-${{ matrix.slot }}
+          path: ${{ runner.temp }}/dk-phases
+          if-no-files-found: ignore
+
       # Windows uses the dk1.cmd launcher (bootstraps via PowerShell, no curl
       # dependency) and Stopwatch timing.
       - name: dk cold build + warm run + edit rebuild (timed, Windows)
@@ -105,6 +121,53 @@ jobs:
           Write-Host "DK ENGINE OUTPUT from the last timed run, printed outside the stopwatch"
           Get-Content $errlog
           Write-Host "DK MEASURE DONE $(Get-Date -Format HH:mm:ss)"
+
+          # The same three readings, machine readable, for the gate job. Written
+          # AFTER every stopwatch has stopped and outside the working tree, so it
+          # cannot move a number.
+          $phaseDir = Join-Path $env:RUNNER_TEMP 'dk-phases'
+          New-Item -ItemType Directory -Force -Path $phaseDir | Out-Null
+          "dk_build_cold=$cold`ndk_run_warm=$warm`ndk_run_edit=$edit" |
+            Set-Content -NoNewline -Path (Join-Path $phaseDir "$slot.txt")
+
+      - name: Upload this slot's readings for the gate
+        if: ${{ always() && runner.os == 'Windows' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dk-phases-${{ matrix.slot }}
+          path: ${{ runner.temp }}/dk-phases
+          if-no-files-found: ignore
+
+  # THE MEASUREMENT COVERED EVERY SLOT IT CLAIMS TO COVER, OR THIS FAILS.
+  #
+  # The dk matrix runs fail-fast: false, so a dead leg does not stop the others and
+  # the workflow can finish carrying numbers for only some slots. Those numbers then
+  # refresh CLO.md and both PR descriptions while describing a slot nobody measured.
+  # `needs: dk` with `if: always()` is what makes this reachable when a leg failed,
+  # which is the case it exists for.
+  measurement-gate:
+    needs: dk
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Download every slot's readings
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dk-phases-*
+          merge-multiple: true
+          path: collected
+
+      # A check that has only ever been observed passing is evidence about the run
+      # and not about the check. This proves it rejects a missing slot, a missing
+      # phase and a zero reading BEFORE its verdict on real data is believed.
+      - name: Prove the gate fires
+        run: node .github/check-measurement-complete.mjs --selftest
+
+      - name: Every declared slot reported every declared phase
+        run: node .github/check-measurement-complete.mjs --dir collected
 
   opam:
     strategy:
