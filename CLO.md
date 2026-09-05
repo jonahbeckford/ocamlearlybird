@@ -12,11 +12,10 @@ Timings come from GitHub Actions runners running dk 2.4.2.342
 (`.github/workflows/measure-performance.yml`). Every figure below is the mean of
 **four** runs of that workflow at one pin, and the `±` beside it is how far those
 four runs spread: the sample standard deviation over the mean, rounded to a whole
-percent. A figure at `±2%` repeated itself and a figure at `±17%` did not, so a
-gap narrower than a figure's own `±` is not a real gap. Four runs separate a
-steady number from a noisy one; they are not enough to pin the `±` itself
-finer than a whole percent. Absolute times scale with core count and disk speed,
-so your own machine will land somewhere else.
+percent. A figure at `±2%` repeated itself and a figure at `±17%` did not. Four
+runs separate a steady number from a noisy one; they are not enough to pin the
+`±` itself finer than a whole percent. Absolute times scale with core count and
+disk speed, so your own machine will land somewhere else.
 
 > **Two launchers, one tool.** dk ships two front-ends: `dk0` (single-threaded,
 > minimal) and `dk1` (multi-threaded, the everyday driver). This project vendors
