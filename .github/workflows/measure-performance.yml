@@ -1,0 +1,169 @@
+name: measure-performance
+# Head-to-head opam-vs-dk timing for the Quick Setup tier, which builds the
+# dependency closure from source, on Linux_x86_64 (ubuntu-latest) and
+# Windows_x86_64 (windows-latest). Each runner measures the host ABI natively.
+# Trigger from the Actions tab (workflow_dispatch) or by pushing a perf-* tag;
+# the perf workflow never runs on push or pull_request, so it stays off the PR
+# status checks.
+#
+# Every timed step prints `PHASE <name> ms=<n>` lines and a final SUMMARY line.
+# The dk track and the opam track produce the same runnable binary, so their
+# SUMMARY lines are directly comparable:
+#   dk    fresh -> binary : dk_build_cold  (compiles the whole closure)
+#   opam  fresh -> binary : (setup-ocaml step) + opam_deps + opam_build_cold
+#   dk    re-run a binary : dk_run_warm
+#   opam  re-run a binary : opam_run_warm
+#   dk    edit one file    : dk_run_edit    (rebuilds the leaf package object)
+#   opam  edit one file    : opam_build_edit (dune's file-level incremental)
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'perf-*'
+
+jobs:
+  dk:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            slot: Release.Linux_x86_64
+          - os: windows-latest
+            slot: Release.Windows_x86_64
+    runs-on: ${{ matrix.os }}
+    # A cold from-source closure build plus native compilation; give the job
+    # generous headroom over the default and the ci.yml jobs.
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      # Linux uses the POSIX ./dk1 launcher (curl is present) and date-based
+      # millisecond timing.
+      - name: dk cold build + warm run + edit rebuild (timed, Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          now() { date +%s%3N; }
+          slot='${{ matrix.slot }}'
+          run() { ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+                    -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain >/dev/null; }
+          echo "DK MEASURE STARTED $(date -u +%H:%M:%S) slot=$slot"
+
+          a=$(now); run; b=$(now)
+          echo "PHASE dk_build_cold ms=$((b-a))"
+
+          c=$(now); run; d=$(now)
+          echo "PHASE dk_run_warm ms=$((d-c))"
+
+          printf '\n(* perf measurement touch *)\n' >> src/main/main.ml
+          ./dk1 update --no-imports
+          e=$(now); run; f=$(now)
+          echo "PHASE dk_run_edit ms=$((f-e))"
+
+          echo "DK SUMMARY slot=$slot build_cold_ms=$((b-a)) run_warm_ms=$((d-c)) run_edit_ms=$((f-e))"
+          echo "DK MEASURE DONE $(date -u +%H:%M:%S)"
+
+      # Windows uses the dk1.cmd launcher (bootstraps via PowerShell, no curl
+      # dependency) and Stopwatch timing.
+      - name: dk cold build + warm run + edit rebuild (timed, Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $slot = '${{ matrix.slot }}'
+          # The engine writes its progress stream to stderr. Console writes on
+          # the Windows runner are expensive enough to move the numbers, so it
+          # goes to a file and is printed after the stopwatch stops. The file
+          # sits in the runner temp rather than the working tree, which the
+          # edit rebuild measures a change to.
+          $errlog = Join-Path $env:RUNNER_TEMP 'dk-run.err'
+          function Run {
+            & .\dk1.cmd run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 `
+              -s $slot -m ./bin/ocamlearlybird.exe -- --help=plain 2> $errlog > $null
+            if ($LASTEXITCODE -ne 0) { Get-Content $errlog; throw "run-object failed ($LASTEXITCODE)" }
+          }
+          Write-Host "DK MEASURE STARTED $(Get-Date -Format HH:mm:ss) slot=$slot"
+
+          $sw = [System.Diagnostics.Stopwatch]::StartNew(); Run; $cold = $sw.ElapsedMilliseconds
+          Write-Host "PHASE dk_build_cold ms=$cold"
+
+          $sw.Restart(); Run; $warm = $sw.ElapsedMilliseconds
+          Write-Host "PHASE dk_run_warm ms=$warm"
+
+          Add-Content -Path src/main/main.ml -Value "`n(* perf measurement touch *)`n"
+          & .\dk1.cmd update --no-imports
+          if ($LASTEXITCODE -ne 0) { throw "update failed ($LASTEXITCODE)" }
+          $sw.Restart(); Run; $edit = $sw.ElapsedMilliseconds
+          Write-Host "PHASE dk_run_edit ms=$edit"
+
+          Write-Host "DK SUMMARY slot=$slot build_cold_ms=$cold run_warm_ms=$warm run_edit_ms=$edit"
+          Write-Host "DK ENGINE OUTPUT from the last timed run, printed outside the stopwatch"
+          Get-Content $errlog
+          Write-Host "DK MEASURE DONE $(Get-Date -Format HH:mm:ss)"
+
+  opam:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      # T0 is stamped after checkout but before switch create, so the opam
+      # fresh-to-binary number includes switch create + compiler install
+      # (setup-ocaml), the fair counterpart to dk fetching its toolchain.
+      - name: Stamp opam start time (before switch create)
+        shell: bash
+        run: echo "OPAM_T0=$(date +%s%3N)" >> "$GITHUB_ENV"
+
+      # Matches the dk-locked compiler (CommonsLang_OCaml.DkML@4.14.3) so the
+      # opam and dk tracks build the same package set with the same compiler.
+      - name: Set up OCaml 4.14 (switch create + compiler install)
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 4.14.x
+
+      - name: opam setup + deps + dune build cold/warm/edit (timed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          now() { date +%s%3N; }
+          t0="$OPAM_T0"
+          echo "OPAM MEASURE STARTED $(date -u +%H:%M:%S) os=${{ matrix.os }}"
+
+          a=$(now)
+          echo "PHASE opam_setup ms=$((a-t0))"
+
+          opam install . --deps-only -y; b=$(now)
+          echo "PHASE opam_deps ms=$((b-a))"
+
+          # @install builds the library + executable (the shipped artifacts) and
+          # skips the test rules, which spawn the debugger and time out on the
+          # Windows runner. This measures the same deliverable the dk track runs.
+          c=$(now); opam exec -- dune build @install; d=$(now)
+          echo "PHASE opam_build_cold ms=$((d-c))"
+          echo "PHASE opam_fresh_to_binary ms=$((d-t0))"
+
+          e=$(now); opam exec -- dune build @install; f=$(now)
+          echo "PHASE opam_build_warm ms=$((f-e))"
+
+          g=$(now); opam exec -- dune exec -- ocamlearlybird --help=plain >/dev/null; h=$(now)
+          echo "PHASE opam_run_warm ms=$((h-g))"
+
+          printf '\n(* perf measurement touch *)\n' >> src/main/main.ml
+          i=$(now); opam exec -- dune build @install; j=$(now)
+          echo "PHASE opam_build_edit ms=$((j-i))"
+
+          echo "OPAM SUMMARY os=${{ matrix.os }} fresh_to_binary_ms=$((d-t0)) setup_ms=$((a-t0)) deps_ms=$((b-a)) build_cold_ms=$((d-c)) build_warm_ms=$((f-e)) run_warm_ms=$((h-g)) build_edit_ms=$((j-i))"
+          echo "OPAM MEASURE DONE $(date -u +%H:%M:%S)"
