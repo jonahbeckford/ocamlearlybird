@@ -87,10 +87,16 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $slot = '${{ matrix.slot }}'
+          # The engine writes its progress stream to stderr. Console writes on
+          # the Windows runner are expensive enough to move the numbers, so it
+          # goes to a file and is printed after the stopwatch stops. The file
+          # sits in the runner temp rather than the working tree, which the
+          # reconcile run compares against the release.
+          $errlog = Join-Path $env:RUNNER_TEMP 'dk-run.err'
           function Run {
             & .\dk1.cmd run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 `
-              -s $slot -m ./bin/ocamlearlybird.exe -- --help=plain > $null
-            if ($LASTEXITCODE -ne 0) { throw "run-object failed ($LASTEXITCODE)" }
+              -s $slot -m ./bin/ocamlearlybird.exe -- --help=plain 2> $errlog > $null
+            if ($LASTEXITCODE -ne 0) { Get-Content $errlog; throw "run-object failed ($LASTEXITCODE)" }
           }
           Write-Host "DK MEASURE STARTED $(Get-Date -Format HH:mm:ss) slot=$slot"
 
@@ -114,6 +120,8 @@ jobs:
 
           $drifted = if ($reconcile -gt (3 * $warm)) { 't' } else { 'f' }
           Write-Host "DK SUMMARY slot=$slot fetch_cold_ms=$cold reconcile_ms=$reconcile run_warm_ms=$warm tree_drifted_from_release=$drifted warm_silent=$silent"
+          Write-Host "DK ENGINE OUTPUT from the last timed run, printed outside the stopwatch"
+          Get-Content $errlog
           Write-Host "DK MEASURE DONE $(Get-Date -Format HH:mm:ss)"
 
   opam:
