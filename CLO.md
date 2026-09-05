@@ -9,8 +9,14 @@ is meant to double as a worked, replayable example of adopting dk for an
 existing opam/dune project.
 
 Timings come from GitHub Actions runners running dk 2.4.2.342
-(`.github/workflows/measure-performance.yml`); they scale with core count and
-disk speed, so treat them as orders of magnitude.
+(`.github/workflows/measure-performance.yml`). Every figure below is the mean of
+**four** runs of that workflow at one pin, and the `±` beside it is how far those
+four runs spread: the sample standard deviation over the mean, rounded to a whole
+percent. A figure at `±2%` repeated itself and a figure at `±17%` did not, so a
+gap narrower than a figure's own `±` is not a real gap. Four runs separate a
+steady number from a noisy one; they are not enough to pin the `±` itself
+finer than a whole percent. Absolute times scale with core count and disk speed,
+so your own machine will land somewhere else.
 
 > **Two launchers, one tool.** dk ships two front-ends: `dk0` (single-threaded,
 > minimal) and `dk1` (multi-threaded, the everyday driver). This project vendors
@@ -70,8 +76,14 @@ served from the local object cache:
 | Step | Linux_x86_64 | Windows_x86_64 |
 | --- | --- | --- |
 | Install dk1 | ~5 s | ~5 s |
-| First run (fetch toolchain + build closure) | ~3 m 52 s | ~10 m 26 s |
-| Warm re-run | ~6 s | ~13 s |
+| First run (fetch toolchain + build closure) | ~3 m 42 s ±8% | ~9 m 30 s ±12% |
+| Warm re-run | ~6 s ±2% | ~12 s ±16% |
+
+Every figure is the mean of **four** runs of
+`.github/workflows/measure-performance.yml` at one pin, and `±` is how far those
+four spread: the sample standard deviation over the mean, rounded to a whole
+percent. The install row is a single observation
+the workflow does not time.
 
 ### Compared with a conventional opam + dune setup
 
@@ -83,18 +95,29 @@ and compiler install):
 
 | Step | dk Quick Setup | opam + dune |
 | --- | --- | --- |
-| Linux: fresh checkout to a runnable binary | ~3 m 52 s | ~5 m |
-| Linux: re-run the built binary | ~6 s | ~0.1 s |
-| Linux: edit one file, rebuild | ~18 s | ~0.2 s |
-| Windows: fresh checkout to a runnable binary | ~10 m 26 s | ~15 m |
-| Windows: re-run the built binary | ~13 s | ~1.2 s |
-| Windows: edit one file, rebuild | ~48 s | ~1.4 s |
+| Linux: fresh checkout to a runnable binary | ~3 m 42 s ±8% | ~2 m 8 s ±5% |
+| Linux: re-run the built binary | ~6 s ±2% | ~0.1 s ±5% |
+| Linux: edit one file, rebuild | ~18 s ±3% | ~0.2 s ±6% |
+| Windows: fresh checkout to a runnable binary | ~9 m 30 s ±12% | ~7 m 23 s ±3% |
+| Windows: re-run the built binary | ~12 s ±16% | ~1.5 s ±24% |
+| Windows: edit one file, rebuild | ~46 s ±7% | ~1.5 s ±17% |
 
-dk reaches a runnable binary first because it fetches the prebuilt, attested
-toolchain while opam builds the compiler and every dependency from source. Once
-built, dune's persistent `_build` gives a sub-second inner loop, so a developer
-iterating on source is fastest under `dune build -w` against a switch that
-reuses dk's already-built dependency closure.
+Every figure is the mean of **four** runs of
+`.github/workflows/measure-performance.yml` at one pin, and `±` is how far those
+four spread: the sample standard deviation over the mean, rounded to a whole
+percent. The two `opam + dune` fresh-checkout
+figures include `setup-ocaml`, which restored a cached switch in all four runs.
+A runner that has to build the switch instead spends several more minutes there,
+so those two figures describe the CI cache as much as they describe opam.
+
+Which column reaches a runnable binary first depends on `setup-ocaml`. In these
+runs it restored a cached switch rather than building one, and `opam + dune`
+arrives first; on a runner that has to build the switch, that column is several
+minutes longer and dk arrives first. dk has no step whose cost turns on a cache
+hit: it fetches the prebuilt, attested toolchain every time. Once built, dune's
+persistent `_build` gives a sub-second inner loop, so a developer iterating on
+source is fastest under `dune build -w` against a switch that reuses dk's
+already-built dependency closure.
 
 ### Quick Setup for Maintainers
 
@@ -196,6 +219,9 @@ object; fetching and running it needs only dk:
 | --- | --- |
 | Fetch + extract the 5.5 compiler object | ~6 s |
 
+A single observation. `measure-performance.yml` does not time this step, so this
+figure carries no spread.
+
 `ldd ocamlopt.opt` resolves against the stock Ubuntu loader and C library, and
 both `ocamlopt.opt` and `ocamlc.opt` run. An already-linked object is an
 executable the loader accepts as-is, so a path that fetches already-linked
@@ -250,12 +276,20 @@ Actions runners (`.github/workflows/measure-performance.yml`):
 
 | Step | Linux_x86_64 | Windows_x86_64 |
 | --- | --- | --- |
-| Fetch the prebuilt closure and run | ~2 m 29 s | ~2 m 56 s |
-| Warm re-run | ~6 s | ~13 s |
+| Fetch the prebuilt closure and run | ~2 m 31 s ±20% | ~3 m 40 s ±7% |
+| Warm re-run | ~6 s ±10% | ~12 s ±18% |
 
-For comparison, Quick Setup's first build on the same runners is ~3 m 52 s
-(Linux) and ~10 m 26 s (Windows), and a from-scratch `opam switch create` +
-`opam install` + `dune build` is ~5 m (Linux) and ~15 m (Windows).
+Every figure is the mean of **four** runs of
+`.github/workflows/measure-performance.yml` at one pin, and `±` is how far those
+four spread: the sample standard deviation over the mean, rounded to a whole
+percent. Both fetch figures spend most of their
+time on the network, and the Linux one is the widest number on this page, so
+read it as a band rather than a point.
+
+For comparison, on the same runners Quick Setup's first build is
+~3 m 42 s ±8% (Linux) and ~9 m 30 s ±12% (Windows), and `opam switch create` +
+`opam install` + `dune build` with `setup-ocaml` restoring a cached switch is
+~2 m 8 s ±5% (Linux) and ~7 m 23 s ±3% (Windows).
 
 > **`restore` and pruned releases.** `restore github-l2 ...` bulk-seeds the
 > store by walking the distribution's release chain. As of dk `2.4.2.334` a
@@ -302,7 +336,10 @@ the CI runners):
 | --- | --- |
 | opam venv: edit + `dune build @check` (typecheck) | ~3 s |
 | opam venv: edit + `dune build src/main/main.exe` (native relink) | ~13 s |
-| dk: edit + `dk1 update` + `run-object` (whole package) | ~48 s |
+| dk: edit + `dk1 update` + `run-object` (whole package) | ~46 s ±7% |
+
+The dk row is the mean of four CI runs with its spread. The two venv rows are
+single observations on one workstation, which is why they carry no `±`.
 
 **Parity.** The venv resolves to the same locked dependency versions and the same
 `CommonsLang_OCaml.DkML@4.14.3` compiler the reproducible dk build uses (it is
@@ -350,7 +387,12 @@ rebuild):
 
 | Step | Linux_x86_64 | Windows_x86_64 |
 | --- | --- | --- |
-| Edit one file, rebuild | ~18 s | ~48 s |
+| Edit one file, rebuild | ~18 s ±3% | ~46 s ±7% |
+
+Every figure is the mean of **four** runs of
+`.github/workflows/measure-performance.yml` at one pin, and `±` is how far those
+four spread: the sample standard deviation over the mean, rounded to a whole
+percent.
 
 ## What gets cached
 
