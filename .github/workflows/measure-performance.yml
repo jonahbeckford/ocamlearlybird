@@ -78,7 +78,7 @@ jobs:
           $slot = '${{ matrix.slot }}'
           function Run {
             & .\dk1.cmd run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 `
-              -s $slot -m ./bin/ocamlearlybird.exe -- --help=plain *> $null
+              -s $slot -m ./bin/ocamlearlybird.exe -- --help=plain > $null
             if ($LASTEXITCODE -ne 0) { throw "run-object failed ($LASTEXITCODE)" }
           }
           Write-Host "DK MEASURE STARTED $(Get-Date -Format HH:mm:ss) slot=$slot"
