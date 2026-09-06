@@ -30,12 +30,46 @@ on:
           - 'true'
           - 'false'
         default: 'true'
+      regenerate:
+        description: >-
+          Run the regenerate-import job INSTEAD of the measurement jobs. It
+          repins dk.u to the engine and CommonsLang_OCaml versions below, runs
+          the launcher's update on this runner, and uploads the regenerated
+          etc/dk/i as an artifact so the diff can be read. It does not commit
+          unless commit is also true.
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+        default: 'false'
+      engine_version:
+        description: >-
+          The dk actual_version to repin to when regenerate is true. 2.4.3.9
+          is the earliest published engine clearing the F_BuildLockedClosure
+          object-form floor; 2.4.3.8 itself is 404.
+        type: string
+        default: '2.4.3.9'
+      clo_version:
+        description: >-
+          The CommonsLang_OCaml tag to import when regenerate is true.
+        type: string
+        default: '0.1.20260902235611'
+      commit:
+        description: >-
+          Commit the regenerated material back to this branch. Leave false on
+          the first dispatch so the diff is read before anything lands.
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+        default: 'false'
   push:
     tags:
       - 'perf-*'
 
 jobs:
   dk:
+    if: ${{ inputs.regenerate != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -159,6 +193,7 @@ jobs:
   # `needs: dk` with `if: always()` is what makes this reachable when a leg failed,
   # which is the case it exists for.
   measurement-gate:
+    if: ${{ inputs.regenerate != 'true' }}
     needs: dk
     if: ${{ always() }}
     runs-on: ubuntu-latest
@@ -183,6 +218,7 @@ jobs:
         run: node .github/check-measurement-complete.mjs --dir collected
 
   opam:
+    if: ${{ inputs.regenerate != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -249,3 +285,176 @@ jobs:
 
           echo "OPAM SUMMARY os=${{ matrix.os }} fresh_to_binary_ms=$((d-t0)) setup_ms=$((a-t0)) deps_ms=$((b-a)) build_cold_ms=$((d-c)) build_warm_ms=$((f-e)) run_warm_ms=$((h-g)) build_edit_ms=$((j-i))"
           echo "OPAM MEASURE DONE $(date -u +%H:%M:%S)"
+
+  regenerate-import:
+    # Regenerate etc/dk/i for a chosen CommonsLang_OCaml version ON A HOSTED
+    # RUNNER, so the import is produced without executing the engine on a
+    # machine that holds release credentials.
+    #
+    # OFF BY DEFAULT, and a perf-* tag push carries no inputs at all, so
+    # inputs.regenerate is empty there and this job does not run while the
+    # measurement jobs do. The measurement jobs carry the mirror condition, so
+    # a regeneration dispatch does not also burn the 90-minute matrix.
+    #
+    # It does NOT commit unless asked. The first dispatch produces the diff as
+    # an artifact so it can be READ before anything is pushed; a second
+    # dispatch with commit=true lands it. The diff is the point rather than a
+    # formality: whether regenerating changes anything beyond version strings
+    # has never been established.
+    if: ${{ inputs.regenerate == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      - name: Record what is pinned before anything is touched
+        run: |
+          set -eu
+          mkdir -p .regen
+          echo "--- dk.u pins BEFORE ---"
+          grep -n 'actual_version' dk.u || true
+          grep -n 'CommonsLang_OCaml' dk.u || true
+          echo "--- etc/dk/i BEFORE ---"
+          ls -1 etc/dk/i/
+          cp -a etc/dk/i .regen/i-before
+          cp dk.u .regen/dk.u.before
+
+      - name: Repin dk.u to the requested engine and CommonsLang_OCaml
+        env:
+          ENGINE: ${{ inputs.engine_version }}
+          CLO: ${{ inputs.clo_version }}
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import os, re, sys, pathlib
+
+          eng = os.environ["ENGINE"].strip()
+          clo = os.environ["CLO"].strip()
+          if not eng or not clo:
+              sys.exit("REFUSING: engine_version and clo_version must both be non-empty")
+
+          p = pathlib.Path("dk.u")
+          s = p.read_text(encoding="utf-8")
+          orig = s
+
+          # The engine appears twice: in the %% directive and as the bare quoted
+          # value beneath it. Both must move or the two disagree.
+          m = re.search(r'actual_version\("([0-9][0-9.]*)"\)', s)
+          if not m:
+              sys.exit("REFUSING: no actual_version directive found in dk.u")
+          old_eng = m.group(1)
+          s = s.replace('actual_version("' + old_eng + '")', 'actual_version("' + eng + '")')
+          pat = r"(?m)^([ \t]*)'" + re.escape(old_eng) + r"'[ \t]*$"
+          n_eng = len(re.findall(pat, s))
+          if n_eng != 1:
+              sys.exit("REFUSING: expected exactly 1 bare quoted %s line, found %d" % (old_eng, n_eng))
+          s = re.sub(pat, lambda mo: mo.group(1) + "'" + eng + "'", s)
+
+          # The %% directive carries tag=, the emitted block carries version=.
+          # update rewrites the checksums; it does not choose the version, so
+          # both are set here.
+          m2 = re.search(r'repo="dkpkg/CommonsLang_OCaml", tag="([^"]+)"', s)
+          if not m2:
+              sys.exit("REFUSING: no CommonsLang_OCaml import directive found in dk.u")
+          old_clo = m2.group(1)
+          s = s.replace('repo="dkpkg/CommonsLang_OCaml", tag="' + old_clo + '"',
+                        'repo="dkpkg/CommonsLang_OCaml", tag="' + clo + '"')
+          vpat = 'version: "' + old_clo + '"'
+          n_v = s.count(vpat)
+          if n_v != 1:
+              sys.exit("REFUSING: expected exactly 1 occurrence of %s, found %d" % (vpat, n_v))
+          s = s.replace(vpat, 'version: "' + clo + '"')
+
+          if s == orig:
+              sys.exit("REFUSING: dk.u is unchanged after both edits, which cannot be right")
+          p.write_text(s, encoding="utf-8")
+          pathlib.Path(".regen/old_clo").write_text(old_clo, encoding="utf-8")
+          print("dk.u repinned: engine " + old_eng + " -> " + eng)
+          print("dk.u repinned: CommonsLang_OCaml " + old_clo + " -> " + clo)
+          PY
+          echo "--- dk.u diff ---"
+          git --no-pager diff -- dk.u
+
+      - name: Run the launcher's update on this runner
+        run: |
+          set -eu
+          # KEEP THE EVIDENCE. A sibling step in this workflow once discarded a
+          # failing run's output and the engine's own error was unreadable.
+          # tee, so a failure is diagnosable from the log alone.
+          set +e
+          ./dk1 update 2>&1 | tee .regen/update.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "update exit code: $rc"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::./dk1 update failed with exit code $rc; the log above is the evidence"
+            exit "$rc"
+          fi
+
+      - name: The regeneration must have produced something
+        env:
+          CLO: ${{ inputs.clo_version }}
+        run: |
+          set -eu
+          want="etc/dk/i/CommonsLang_OCaml.${CLO}.values.json"
+          echo "--- etc/dk/i AFTER ---"
+          ls -1 etc/dk/i/
+          # An empty result must never impersonate a real answer.
+          if [ ! -s "$want" ]; then
+            echo "::error::$want is missing or empty after update; the regeneration produced nothing"
+            exit 1
+          fi
+          echo "PRESENT $want ($(wc -c < "$want") bytes)"
+          old=$(cat .regen/old_clo)
+          oldf=".regen/i-before/CommonsLang_OCaml.${old}.values.json"
+          echo "--- values.json: ${old} -> ${CLO} ---"
+          if [ -s "$oldf" ]; then
+            # diff exits 1 when the files differ, which is the expected case.
+            diff -u "$oldf" "$want" > .regen/values.diff || true
+            echo "diff lines: $(wc -l < .regen/values.diff)"
+            cat .regen/values.diff
+          else
+            echo "no prior values.json at $oldf to diff against"
+            echo "no prior values.json to diff" > .regen/values.diff
+          fi
+          echo "--- every change in the working tree ---"
+          git status --porcelain
+          git --no-pager diff --stat
+
+      - name: Upload the regenerated material so the diff can be read before it lands
+        uses: actions/upload-artifact@v4
+        with:
+          name: regenerated-import
+          path: |
+            dk.u
+            etc/dk/i/**
+            .regen/values.diff
+            .regen/update.log
+          if-no-files-found: error
+
+      - name: Commit and push, only when asked
+        if: ${{ inputs.commit == 'true' }}
+        env:
+          ENGINE: ${{ inputs.engine_version }}
+          CLO: ${{ inputs.clo_version }}
+        run: |
+          set -eu
+          rm -rf .regen
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "::error::commit was requested but the tree is clean; nothing was regenerated"
+            exit 1
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dk.u etc/dk/i
+          git commit \
+            -m "Regenerate the import on a hosted runner" \
+            -m "+ repin the engine to ${ENGINE}" \
+            -m "+ repin CommonsLang_OCaml to ${CLO}" \
+            -m "+ regenerate etc/dk/i with ./dk1 update"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
