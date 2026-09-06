@@ -101,6 +101,17 @@ and compiler install):
 | Windows: re-run the built binary | ~12 s ±16% | ~1.2 s ±18% |
 | Windows: edit one file, rebuild | ~46 s ±7% | ~1.4 s ±15% |
 
+**What each fresh-checkout figure includes.** Both columns start from a clean
+checkout and end at a binary that runs, and they reach it through different work,
+so the two numbers are only comparable once that work is named. The dk column sums
+fetching the prebuilt toolchain, building the locked dependency closure, and
+building the `earlybird` package; installing `dk1` is timed on its own row above and
+is not inside it. The `opam + dune` column sums `opam switch create` with the
+compiler install, `opam install . --deps-only`, and `dune build`, and the
+`setup-ocaml` step inside it restores a cached switch unless the row says otherwise.
+Neither column includes `actions/checkout` itself. The re-run and edit rows include
+only the action they name.
+
 The dk figures are the mean of **four** runs of
 `.github/workflows/measure-performance.yml` at one pin. For `opam + dune` the two
 fresh-checkout figures are the mean of the **19** (Linux) and **20** (Windows)
@@ -290,6 +301,11 @@ four spread: the sample standard deviation over the mean, rounded to a whole
 percent. Both fetch figures spend most of their
 time on the network, and the Linux one is the widest number on this page, so
 read it as a band rather than a point.
+
+**What the fetch figure includes.** It sums installing `dk1`, range-fetching the
+prebuilt closure objects, and running the result. It compiles nothing, which is the
+whole difference from Quick Setup's first build above, and it is why the number is
+mostly network. The warm row includes only the re-run.
 
 For comparison, on the same runners Quick Setup's first build is
 ~3 m 42 s ±8% (Linux) and ~9 m 30 s ±12% (Windows), and `opam switch create` +
