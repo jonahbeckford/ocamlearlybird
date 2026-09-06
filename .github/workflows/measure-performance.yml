@@ -193,9 +193,8 @@ jobs:
   # `needs: dk` with `if: always()` is what makes this reachable when a leg failed,
   # which is the case it exists for.
   measurement-gate:
-    if: ${{ inputs.regenerate != 'true' }}
     needs: dk
-    if: ${{ always() }}
+    if: ${{ always() && inputs.regenerate != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
