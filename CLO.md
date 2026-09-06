@@ -94,29 +94,35 @@ and compiler install):
 
 | Step | dk Quick Setup | opam + dune |
 | --- | --- | --- |
-| Linux: fresh checkout to a runnable binary | ~3 m 42 s ±8% | ~2 m 8 s ±5% |
-| Linux: re-run the built binary | ~6 s ±2% | ~0.1 s ±5% |
-| Linux: edit one file, rebuild | ~18 s ±3% | ~0.2 s ±6% |
-| Windows: fresh checkout to a runnable binary | ~9 m 30 s ±12% | ~7 m 23 s ±3% |
-| Windows: re-run the built binary | ~12 s ±16% | ~1.5 s ±24% |
-| Windows: edit one file, rebuild | ~46 s ±7% | ~1.5 s ±17% |
+| Linux: fresh checkout to a runnable binary | ~3 m 42 s ±8% | ~2 m 13 s ±7% |
+| Linux: re-run the built binary | ~6 s ±2% | ~0.1 s ±8% |
+| Linux: edit one file, rebuild | ~18 s ±3% | ~0.2 s ±7% |
+| Windows: fresh checkout to a runnable binary | ~9 m 30 s ±12% | ~7 m 20 s ±4% |
+| Windows: re-run the built binary | ~12 s ±16% | ~1.2 s ±18% |
+| Windows: edit one file, rebuild | ~46 s ±7% | ~1.4 s ±15% |
 
-Every figure is the mean of **four** runs of
-`.github/workflows/measure-performance.yml` at one pin, and `±` is how far those
-four spread: the sample standard deviation over the mean, rounded to a whole
-percent. The two `opam + dune` fresh-checkout
-figures include `setup-ocaml`, which restored a cached switch in all four runs.
-A runner that has to build the switch instead spends several more minutes there,
-so those two figures describe the CI cache as much as they describe opam.
+The dk figures are the mean of **four** runs of
+`.github/workflows/measure-performance.yml` at one pin. For `opam + dune` the two
+fresh-checkout figures are the mean of the **19** (Linux) and **20** (Windows)
+runs at that same pin whose `setup-ocaml` step restored its switch from the
+Actions cache, read from each run's log rather than guessed from its duration;
+the other four `opam + dune` rows are pooled over all **31** (Linux) and **32**
+(Windows) runs, because the cache does not touch them. `±` is the sample standard
+deviation over the mean, rounded to a whole percent.
 
-Which column reaches a runnable binary first depends on `setup-ocaml`. In these
-runs it restored a cached switch rather than building one, and `opam + dune`
-arrives first; on a runner that has to build the switch, that column is several
-minutes longer and dk arrives first. dk has no step whose cost turns on a cache
-hit: it fetches the prebuilt, attested toolchain every time. Once built, dune's
-persistent `_build` gives a sub-second inner loop, so a developer iterating on
-source is fastest under `dune build -w` against a switch that reuses dk's
-already-built dependency closure.
+**The `opam + dune` column describes a warm CI cache, and that is worth stating in
+numbers rather than as a caveat.** `setup-ocaml` restores a 195 MB (Linux) or
+552 MB (Windows) opam switch, and that restore sits inside the fresh-checkout
+figure. Measured with the cache turned off, over 8 runs at the same pin, the same
+column reads **~4 m 45 s ±13%** on Linux and **~15 m 6 s ±2%** on Windows, and dk
+arrives first on both. The cache holds the compiler and the switch, not this
+project's dependencies: `opam install . --deps-only` costs ~1 m 38 s with the cache
+off against ~1 m 44 s with it on, which is the same number twice.
+
+dk has no step whose cost turns on a cache hit: it fetches the prebuilt, attested
+toolchain every time. Once built, dune's persistent `_build` gives a sub-second
+inner loop, so a developer iterating on source is fastest under `dune build -w`
+against a switch that reuses dk's already-built dependency closure.
 
 ### Quick Setup for Maintainers
 
