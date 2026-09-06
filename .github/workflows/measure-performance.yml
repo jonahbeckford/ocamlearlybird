@@ -395,6 +395,113 @@ jobs:
             exit "$rc"
           fi
 
+      - name: Regenerate the closure driver so it matches the rules the import offers
+        # WHY THIS STEP EXISTS. Repinning the import rewrites etc/dk/i and leaves
+        # etc/dk/v alone, and etc/dk/v holds a GENERATED driver that names a rule
+        # by version. On 2026-09-06 that cost a whole measurement: the driver named
+        # CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedClosure@1.0.26, the newly
+        # imported CommonsLang_OCaml 0.1.20260902235611 offers @1.0.28 ALONE, and
+        # both dk legs died with "Could not get rule ... does not exist" after the
+        # 90-minute matrix had already been dispatched.
+        #
+        # The driver is NOT hand-edited from one version to the other. Its own
+        # header says regenerate rather than hand-edit, the generator itself moved
+        # @1.1.16 to @1.1.20 between those releases, and nothing here can verify the
+        # two rule versions take the same parameters. A silently different build
+        # would corrupt the very number this workflow exists to produce.
+        env:
+          CLO: ${{ inputs.clo_version }}
+        run: |
+          set -eu
+          imp="etc/dk/i/CommonsLang_OCaml.${CLO}.values.json"
+          if [ ! -s "$imp" ]; then
+            echo "::error::$imp is missing or empty, so there is nothing to regenerate against"
+            exit 1
+          fi
+
+          # THE RULE VERSION IS DISCOVERED, NEVER PINNED HERE. Writing a literal
+          # would reintroduce exactly the defect this step removes: a checked-in
+          # reference to a version the import may no longer offer.
+          ref=$(grep -o 'CommonsLang_OCaml\.Dk\.OpamLock\.Refresh@[0-9][0-9.]*' "$imp" | sort -uV | tail -1)
+          if [ -z "$ref" ]; then
+            echo "::error::the import offers no CommonsLang_OCaml.Dk.OpamLock.Refresh rule, so the driver cannot be regenerated from it"
+            exit 1
+          fi
+          echo "regenerating with $ref"
+
+          # PROVE THE CHECK FIRES BEFORE TRUSTING THAT IT PASSES. CLO.md:194
+          # documents mode=check as read-only and nonzero when a driver is stale,
+          # so it must go RED here and GREEN below, in this same run. A check only
+          # ever observed passing is evidence about the run, not about the check.
+          set +e
+          ./dk1 dialog "$ref" mode=check > .regen/driver-check-before.log 2>&1
+          before=$?
+          set -e
+          echo "driver staleness BEFORE regeneration: exit $before"
+          cat .regen/driver-check-before.log || true
+          if [ "$before" -eq 0 ]; then
+            echo "NOTE: the driver was already current for this import, so this run does not exercise the stale path."
+          fi
+
+          ./dk1 dialog "$ref" 2>&1 | tee .regen/driver-refresh.log
+
+          # KEEP THE EVIDENCE, and fail loudly. A sibling step in this workflow once
+          # discarded a failing run's output and the engine's own error was unreadable.
+          set +e
+          ./dk1 dialog "$ref" mode=check > .regen/driver-check-after.log 2>&1
+          after=$?
+          set -e
+          echo "driver staleness AFTER regeneration: exit $after"
+          cat .regen/driver-check-after.log || true
+          if [ "$after" -ne 0 ]; then
+            echo "::error::the driver is STILL stale after regenerating it; the log above is the evidence"
+            exit "$after"
+          fi
+
+          echo "--- etc/dk/v diff ---"
+          git --no-pager diff -- etc/dk/v/ || true
+
+      - name: Every rule the driver names must exist in the import
+        # The guard that turns a 90-minute failure into a seconds-long one. It is a
+        # SEPARATE step from the regeneration above on purpose: presence and effect
+        # need separate reports, and this one still fires when the regeneration
+        # silently no-ops.
+        env:
+          CLO: ${{ inputs.clo_version }}
+        run: |
+          set -eu
+          imp="etc/dk/i/CommonsLang_OCaml.${CLO}.values.json"
+          drv=etc/dk/v/NotHackwaly_Ocamlearlybird/Ocamlearlybird.Closure.values.jsonc
+          if [ ! -s "$drv" ]; then
+            echo "::error::$drv is missing or empty after regeneration"
+            exit 1
+          fi
+
+          named=$(grep -o 'CommonsLang_OCaml\.[A-Za-z0-9_.]*@[0-9][0-9.]*' "$drv" | sort -u)
+          # An empty result must never impersonate a real answer: a driver naming no
+          # CommonsLang_OCaml rule at all would otherwise read as "nothing missing".
+          if [ -z "$named" ]; then
+            echo "::error::the driver names no CommonsLang_OCaml rule at all, which cannot be right"
+            exit 1
+          fi
+
+          missing=0
+          total=0
+          for r in $named; do
+            total=$((total + 1))
+            if grep -qF "\"$r\"" "$imp"; then
+              echo "  OK      $r"
+            else
+              echo "  MISSING $r"
+              missing=$((missing + 1))
+            fi
+          done
+          echo "checked $total rule(s) named by the driver against $imp"
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::$missing of $total rule(s) named by the driver are absent from the import. This is the 2026-09-06 failure, caught before the measurement instead of after it."
+            exit 1
+          fi
+
       - name: The regeneration must have produced something
         env:
           CLO: ${{ inputs.clo_version }}
@@ -432,8 +539,12 @@ jobs:
           path: |
             dk.u
             etc/dk/i/**
+            etc/dk/v/**
             .regen/values.diff
             .regen/update.log
+            .regen/driver-refresh.log
+            .regen/driver-check-before.log
+            .regen/driver-check-after.log
           if-no-files-found: error
 
       - name: Commit and push, only when asked
@@ -450,10 +561,11 @@ jobs:
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dk.u etc/dk/i
+          git add dk.u etc/dk/i etc/dk/v
           git commit \
             -m "Regenerate the import on a hosted runner" \
             -m "+ repin the engine to ${ENGINE}" \
             -m "+ repin CommonsLang_OCaml to ${CLO}" \
-            -m "+ regenerate etc/dk/i with ./dk1 update"
+            -m "+ regenerate etc/dk/i with ./dk1 update" \
+            -m "+ regenerate the etc/dk/v closure driver with the OpamLock.Refresh dialog"
           git push origin "HEAD:${GITHUB_REF_NAME}"
