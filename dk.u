@@ -39,9 +39,9 @@ them run `./dk1 update --no-imports` to refresh the recorded checksums.
   % unified.asset { name="Lock", file="dk.opam-lock.jsonc" }
   \dk.asset(byteSize: "83240", checksum: (sha256: "8b0cbeeb0d8a11845f3cadc288bf4cb22cad3623c0673892d0b85f5256f0d967"))\;
 
-  %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml", tag="0.1.20260828185957" }
+  %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml", tag="0.1.20260902235611" }
   \dk.import(type: "github-l2", library: "CommonsLang_OCaml",
-    version: "0.1.20260828185957",
-    checksum: (blake2b-256: "3f613c0f9865ae44bbf794074d13658106678a2c06fb06e5b3891675996304e8",
-      sha256: "a2ed4152d89205059819efd3090509f1d2322552305baf9092b68629dbb6bffd",
-      sha1: "5831f4db6062ce052518e4fb218f61dbeb988a5d"))\;
+    version: "0.1.20260902235611",
+    checksum: (blake2b-256: "1983b8815dcf8ce9be9cc224ab9994701346d7a9a07c5d588f8c2f9e51471b0d",
+      sha256: "668c9e1dd790e50a99fa2cd7ed7e2735ee227f85078a8c97ac0950137ff560a5",
+      sha1: "fbc0bab06714ed613eb250d468828ac80eda877d"))\;
