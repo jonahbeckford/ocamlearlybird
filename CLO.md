@@ -101,16 +101,20 @@ and compiler install):
 | Windows: re-run the built binary | ~12 s ±16% | ~1.2 s ±18% |
 | Windows: edit one file, rebuild | ~46 s ±7% | ~1.4 s ±15% |
 
-**What each fresh-checkout figure includes.** Both columns start from a clean
-checkout and end at a binary that runs, and they reach it through different work,
-so the two numbers are only comparable once that work is named. The dk column sums
-fetching the prebuilt toolchain, building the locked dependency closure, and
-building the `earlybird` package; installing `dk1` is timed on its own row above and
-is not inside it. The `opam + dune` column sums `opam switch create` with the
-compiler install, `opam install . --deps-only`, and `dune build`, and the
-`setup-ocaml` step inside it restores a cached switch unless the row says otherwise.
-Neither column includes `actions/checkout` itself. The re-run and edit rows include
-only the action they name.
+**What each fresh-checkout figure includes.** The two columns reach a runnable
+binary through different work, and they also stop in different places, so the
+numbers are comparable only once both are named. The dk figure is one command,
+`./dk1 run-object ... -- --help=plain`, and its timed region covers the vendored
+launcher self-installing the engine pinned in `dk.u`, the lazy fetch of the
+prebuilt toolchain objects, the build of the 53-package locked closure and the
+`earlybird` package, and then RUNNING the produced binary. The opam figure runs
+from a stamp taken after checkout, through `setup-ocaml` (switch create and
+compiler install) and `opam install . --deps-only`, to the end of
+`dune build @install`, so it stops at BUILDING the binary; running it is the
+re-run row below, and costs 0.1 s on Linux. Neither figure includes
+`actions/checkout`. The `Install dk1` row above is a single observation the
+workflow does not time, and is not the self-install that sits inside the dk
+figure.
 
 The dk figures are the mean of **four** runs of
 `.github/workflows/measure-performance.yml` at one pin. For `opam + dune` the two
@@ -302,10 +306,11 @@ percent. Both fetch figures spend most of their
 time on the network, and the Linux one is the widest number on this page, so
 read it as a band rather than a point.
 
-**What the fetch figure includes.** It sums installing `dk1`, range-fetching the
-prebuilt closure objects, and running the result. It compiles nothing, which is the
-whole difference from Quick Setup's first build above, and it is why the number is
-mostly network. The warm row includes only the re-run.
+**What the fetch figure includes.** It is the same one command as Quick Setup's
+first-build row, so its timed region covers the launcher self-installing the engine,
+the range-fetch of the prebuilt closure objects, and then running the produced
+binary. It compiles nothing, which is the whole difference from that row, and is
+why the number is mostly network. The warm row includes only the re-run.
 
 For comparison, on the same runners Quick Setup's first build is
 ~3 m 42 s ±8% (Linux) and ~9 m 30 s ±12% (Windows), and `opam switch create` +
