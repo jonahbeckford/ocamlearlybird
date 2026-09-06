@@ -101,6 +101,17 @@ and compiler install):
 | Windows: re-run the built binary | ~12 s ±16% | ~1.2 s ±18% |
 | Windows: edit one file, rebuild | ~46 s ±7% | ~1.4 s ±15% |
 
+**What each fresh-checkout figure includes.** Both columns start from a clean
+checkout and end at a binary that runs, and they reach it through different work,
+so the two numbers are only comparable once that work is named. The dk column sums
+fetching the prebuilt toolchain, building the locked dependency closure, and
+building the `earlybird` package; installing `dk1` is timed on its own row above and
+is not inside it. The `opam + dune` column sums `opam switch create` with the
+compiler install, `opam install . --deps-only`, and `dune build`, and the
+`setup-ocaml` step inside it restores a cached switch unless the row says otherwise.
+Neither column includes `actions/checkout` itself. The re-run and edit rows include
+only the action they name.
+
 The dk figures are the mean of **four** runs of
 `.github/workflows/measure-performance.yml` at one pin. For `opam + dune` the two
 fresh-checkout figures are the mean of the **19** (Linux) and **20** (Windows)
