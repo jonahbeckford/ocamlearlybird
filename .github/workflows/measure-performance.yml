@@ -29,6 +29,17 @@ on:
           - 'true'
           - 'false'
         default: 'true'
+      profile:
+        description: >-
+          Run the fetch-profile job, which repeats the dk run-object command
+          under `-d perf` so every remote artifact it opens is named. Off by
+          default: it adds a job to an ordinary measurement run and its output
+          is a log rather than a PHASE line.
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+        default: 'false'
   push:
     tags:
       - 'perf-*'
@@ -267,3 +278,89 @@ jobs:
 
           echo "OPAM SUMMARY os=${{ matrix.os }} fresh_to_binary_ms=$((d-t0)) setup_ms=$((a-t0)) deps_ms=$((b-a)) build_cold_ms=$((d-c)) build_warm_ms=$((f-e)) run_warm_ms=$((h-g)) build_edit_ms=$((j-i))"
           echo "OPAM MEASURE DONE $(date -u +%H:%M:%S)"
+
+  # NAMES WHAT A SINGLE-OBJECT FETCH OPENS, and it lives in this workflow
+  # rather than its own because GitHub resolves workflow_dispatch by name only
+  # for a workflow it already knows, and only ci.yml is on the default branch.
+  # A separate file would be a workflow nothing can trigger.
+  #
+  # It exists because the only attribution this repository had for the per-ABI
+  # fan-out was a TIMESTAMP PROXY: 98 s of a 172 s phase binned into windows
+  # guessed to belong to ABIs nobody asked for. BuildPerf.note_index_fetch
+  # emits one `index-fetch` line per artifact carrying that artifact's PATH, so
+  # the split becomes a grouping of named paths instead of an estimate.
+  #
+  # What it does NOT give, stated so nobody sums the wrong column: `central_sz`
+  # is the size of the zip CENTRAL DIRECTORY that was range-fetched. It is not
+  # the transferred bytes and it is not the object's own size. Summing
+  # announced object sizes has already produced a meaningless figure here once.
+  #
+  # It needs nothing from the dk job and the measurement gate needs nothing
+  # from it, so it neither blocks nor is blocked by the published measurement.
+  fetch-profile:
+    if: ${{ inputs.profile == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      - name: Run run-object under -d perf
+        shell: bash
+        run: |
+          set -euo pipefail
+          slot=Release.Linux_x86_64
+          echo "PROFILE STARTED $(date -u +%H:%M:%S) slot=$slot"
+
+          # The perf lines go to stderr. Keep stdout out of the way, and do not
+          # let a non-zero exit hide the log: the log IS the measurement.
+          set +e
+          ./dk1 -d perf run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+            -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain \
+            >/dev/null 2>perf.log
+          rc=$?
+          set -e
+          echo "PROFILE run_object_exit=$rc"
+
+          # PROVE THE INSTRUMENT FIRED before reading anything off it. An empty
+          # parse must never impersonate an answer: zero perf lines reads
+          # exactly like a finding of "no fan-out", and a misplaced flag is not
+          # a finding.
+          n=$(grep -c '^\[perf ' perf.log || true)
+          echo "PROFILE perf_lines=$n"
+          if [ "$n" -eq 0 ]; then
+            echo "PROFILE FAILED: no [perf lines in stderr." >&2
+            echo "Either -d perf sits in the wrong place on the command line, or this" >&2
+            echo "engine does not carry BuildPerf. Neither is a measurement." >&2
+            echo "First 40 stderr lines follow:" >&2
+            head -40 perf.log >&2
+            exit 1
+          fi
+
+          grep 'index-fetch' perf.log | sed 's/.* //' | sort -u > paths.txt
+          echo "PROFILE index_fetch_lines=$(grep -c 'index-fetch' perf.log || true)"
+          echo "PROFILE distinct_paths=$(wc -l < paths.txt)"
+
+          # LONGEST NAME FIRST, and each match is CONSUMED, so Linux_x86_64 is
+          # never counted a second time as Linux_x86. A count in this ecosystem
+          # was redone for exactly that reason.
+          for abi in Linux_x86_64_musl Linux_x86_64 Linux_x86_32 Linux_x86 \
+                     Darwin_arm64 Darwin_x86_64 Windows_x86_64 Windows_x86_32 Windows_x86; do
+            c=$(grep -c "$abi" paths.txt || true)
+            echo "PROFILE abi=$abi distinct_paths=$c"
+            grep -v "$abi" paths.txt > paths.rest || true
+            mv paths.rest paths.txt
+          done
+          echo "PROFILE abi=none distinct_paths=$(wc -l < paths.txt)"
+          echo "PROFILE DONE $(date -u +%H:%M:%S)"
+
+      - name: Upload the perf log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fetch-profile-${{ github.run_id }}
+          path: perf.log
+          if-no-files-found: error
+          retention-days: 30
