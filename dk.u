@@ -11,9 +11,9 @@ MIT
 
 ## workspace
 
-  %% actual_version("2.4.2.342")
+  %% actual_version("2.4.3.9")
   'actual_version'
-  '2.4.2.342'
+  '2.4.3.9'
 
 The workspace assets below are the inputs of the dk build: the dune project
 files, the `src/` tree, and the checked-in opam lock. After editing any of
