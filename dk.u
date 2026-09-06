@@ -1,0 +1,47 @@
+# NotHackwaly_Ocamlearlybird
+
+## Overview
+
+Builds the [ocamlearlybird](https://github.com/hackwaly/ocamlearlybird) OCaml
+debug adapter with the dk build system. See CLO.md for setup instructions.
+
+## License
+
+MIT
+
+## workspace
+
+  %% actual_version("2.4.3.9")
+  'actual_version'
+  '2.4.3.9'
+
+The workspace assets below are the inputs of the dk build: the dune project
+files, the `src/` tree, and the checked-in opam lock. After editing any of
+them run `./dk1 update --no-imports` to refresh the recorded checksums.
+
+### NotHackwaly_Ocamlearlybird.Apparatus@1.3.6
+
+  % unified.asset { name="DuneRoot", file="dune" }
+  \dk.asset(byteSize: "83", checksum: (sha256: "9a38938be58029f13436cf66d626b20b4fa14ecb32428efe123f93b36df96bac"))\;
+
+  % unified.asset { name="DuneWorkspace", file="dk-src/dune-workspace" }
+  \dk.asset(byteSize: "16", checksum: (sha256: "6dff6804e49533fc19ea7b0fbe988213a210fa7b9a2d5fd5f5b89eed6e380e53"))\;
+
+  % unified.asset { name="DuneProject", file="dune-project" }
+  \dk.asset(byteSize: "780", checksum: (sha256: "919033718df7d4b1546ef485a7b35d0bcd23a5b97dad73d9f70826d04951e714"))\;
+
+  % unified.asset { name="Opam", file="earlybird.opam" }
+  \dk.asset(byteSize: "1124", checksum: (sha256: "786504fe6aa5991f03cfa72e5fb830112044f5c76cb42945f51d72ad3f1566f2"))\;
+
+  % unified.asset { name="Src", dir="src" }
+  \dk.asset(byteSize: "51509", checksum: (sha256: "ca452ef1920f6c630882b146796b3adfbf44bb91f7eeda8a41e2e1656fcd1e1d"))\;
+
+  % unified.asset { name="Lock", file="dk.opam-lock.jsonc" }
+  \dk.asset(byteSize: "83240", checksum: (sha256: "8b0cbeeb0d8a11845f3cadc288bf4cb22cad3623c0673892d0b85f5256f0d967"))\;
+
+  %% import { type="github-l2", repo="dkpkg/CommonsLang_OCaml", tag="0.1.20260902235611" }
+  \dk.import(type: "github-l2", library: "CommonsLang_OCaml",
+    version: "0.1.20260902235611",
+    checksum: (blake2b-256: "1983b8815dcf8ce9be9cc224ab9994701346d7a9a07c5d588f8c2f9e51471b0d",
+      sha256: "668c9e1dd790e50a99fa2cd7ed7e2735ee227f85078a8c97ac0950137ff560a5",
+      sha1: "fbc0bab06714ed613eb250d468828ac80eda877d"))\;

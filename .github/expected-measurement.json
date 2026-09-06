@@ -1,0 +1,15 @@
+{
+  "$what": "What THIS branch claims measure-performance.yml covers. The gate job compares it against what the dk matrix actually reported, and fails when they disagree.",
+  "$why_a_declaration_and_not_the_matrix": "Reading the coverage back out of the matrix would make the check agree with whatever the matrix says, including after a slot is quietly dropped. A separate declaration is the thing a dropped slot can DISAGREE with, which is the whole point. When a slot is added or removed on purpose, this file moves in the same commit.",
+  "$why_it_matters": "The dk matrix runs fail-fast: false, so one leg can die while the others publish numbers and the workflow still finishes. Those numbers then refresh CLO.md and both PR bodies while describing a slot nobody measured. That is the failure this gate exists for: a MISSING measurement, not a slower one.",
+  "$phases_differ_by_branch": "This branch measures build_cold, run_warm and run_edit. The high-performance branch measures fetch_cold, run_reconcile and run_warm, because it consumes a prebuilt object rather than building one. The two declarations are therefore NOT interchangeable, and copying one over the other would make each branch's gate check for phases its workflow never emits.",
+  "slots": [
+    "Release.Linux_x86_64",
+    "Release.Windows_x86_64"
+  ],
+  "phases": [
+    "dk_build_cold",
+    "dk_run_warm",
+    "dk_run_edit"
+  ]
+}
