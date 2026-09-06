@@ -1,0 +1,92 @@
+name: fetch-profile
+# Names every remote artifact a single-object fetch opens, by running the SAME
+# run-object command measure-performance.yml times, under `-d perf`.
+#
+# It exists because the only attribution this repository had for the per-ABI
+# fan-out was a TIMESTAMP PROXY: 98 s of a 172 s phase binned into windows
+# guessed to belong to ABIs nobody asked for. BuildPerf.note_index_fetch emits
+# one `index-fetch` line per artifact carrying that artifact's PATH, so the
+# split becomes a grouping of named paths instead of an estimate.
+#
+# What it does NOT give, stated here so nobody sums the wrong column.
+# `central_sz` is the size of the zip CENTRAL DIRECTORY that was range-fetched.
+# It is not the transferred bytes of the object and it is not the object's own
+# size. An earlier attempt in this ecosystem summed announced object sizes and
+# produced over a gigabyte for one ABI, which meant nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: >-
+          The object slot to request. The whole question is whether asking for
+          ONE slot opens metadata for the others, so vary this to check that
+          the fan-out does not follow what was asked for.
+        type: string
+        default: Release.Linux_x86_64
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      - name: Run run-object under -d perf
+        shell: bash
+        run: |
+          set -euo pipefail
+          slot='${{ inputs.slot }}'
+          echo "PROFILE STARTED $(date -u +%H:%M:%S) slot=$slot"
+
+          # The perf lines go to stderr. Keep stdout out of the way, and do not
+          # let a non-zero exit hide the log: the log is the measurement.
+          set +e
+          ./dk1 -d perf run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+            -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain \
+            >/dev/null 2>perf.log
+          rc=$?
+          set -e
+          echo "PROFILE run_object_exit=$rc"
+
+          # PROVE THE INSTRUMENT FIRED before reading anything off it. An empty
+          # parse must never impersonate an answer: zero perf lines reads
+          # exactly like "no fan-out", which is a legitimate finding and is not
+          # what a misplaced flag means.
+          n=$(grep -c '^\[perf ' perf.log || true)
+          echo "PROFILE perf_lines=$n"
+          if [ "$n" -eq 0 ]; then
+            echo "PROFILE FAILED: no [perf lines in stderr." >&2
+            echo "Either -d perf sits in the wrong place on the command line, or this engine" >&2
+            echo "does not carry BuildPerf. Neither is a measurement. First 40 stderr lines:" >&2
+            head -40 perf.log >&2
+            exit 1
+          fi
+
+          grep 'index-fetch' perf.log | sed 's/.* //' | sort -u > paths.txt
+          echo "PROFILE index_fetch_lines=$(grep -c 'index-fetch' perf.log || true)"
+          echo "PROFILE distinct_paths=$(wc -l < paths.txt)"
+
+          # LONGEST NAME FIRST, and each match is CONSUMED, so Linux_x86_64 is
+          # never counted again as Linux_x86. A previous count in this
+          # ecosystem was redone for exactly that reason.
+          for abi in Linux_x86_64_musl Linux_x86_64 Linux_x86_32 Linux_x86 \
+                     Darwin_arm64 Darwin_x86_64 Windows_x86_64 Windows_x86_32 Windows_x86; do
+            c=$(grep -c "$abi" paths.txt || true)
+            echo "PROFILE abi=$abi distinct_paths=$c"
+            grep -v "$abi" paths.txt > paths.rest || true
+            mv paths.rest paths.txt
+          done
+          echo "PROFILE abi=none distinct_paths=$(wc -l < paths.txt)"
+          echo "PROFILE DONE $(date -u +%H:%M:%S)"
+
+      - name: Upload the perf log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fetch-profile-${{ github.run_id }}
+          path: perf.log
+          if-no-files-found: error
+          retention-days: 30
