@@ -42,6 +42,20 @@ on:
           - 'false'
           - 'true'
         default: 'false'
+      refresh:
+        description: >-
+          Refresh the closure's TRANSITIVE pins even when engine_version and
+          clo_version are already what dk.u holds. Without this, the repin step
+          refuses a no-op dk.u; with it, dk.u is left unchanged and dk0 update
+          still runs, so newer transitive dependencies (CommonsBase_*) are
+          pulled and the import and driver are regenerated. Use it to align two
+          branches that pin the same engine and CommonsLang_OCaml but drifted
+          apart on transitive deps.
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+        default: 'false'
 
 jobs:
   repin:
@@ -71,6 +85,7 @@ jobs:
         env:
           ENGINE: ${{ inputs.engine_version }}
           CLO: ${{ inputs.clo_version }}
+          REFRESH: ${{ inputs.refresh }}
         run: |
           set -eu
           python3 - <<'PY'
@@ -113,12 +128,19 @@ jobs:
               sys.exit("REFUSING: expected exactly 1 occurrence of %s, found %d" % (vpat, n_v))
           s = s.replace(vpat, 'version: "' + clo + '"')
 
-          if s == orig:
+          if s != orig:
+              p.write_text(s, encoding="utf-8")
+              print("dk.u repinned: engine " + old_eng + " -> " + eng)
+              print("dk.u repinned: CommonsLang_OCaml " + old_clo + " -> " + clo)
+          elif os.environ.get("REFRESH", "").strip() == "true":
+              # dk.u already names the requested engine and CommonsLang_OCaml.
+              # In refresh mode this is expected: dk.u is left untouched and the
+              # later dk0 update step refreshes the transitive pins instead.
+              print("dk.u already at engine " + eng + " / CommonsLang_OCaml " + clo +
+                    "; refresh mode: leaving dk.u unchanged, refreshing transitive deps via update")
+          else:
               sys.exit("REFUSING: dk.u is unchanged after both edits, which cannot be right")
-          p.write_text(s, encoding="utf-8")
           pathlib.Path(".regen/old_clo").write_text(old_clo, encoding="utf-8")
-          print("dk.u repinned: engine " + old_eng + " -> " + eng)
-          print("dk.u repinned: CommonsLang_OCaml " + old_clo + " -> " + clo)
           PY
           echo "--- dk.u diff ---"
           git --no-pager diff -- dk.u
