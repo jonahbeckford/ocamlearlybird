@@ -34,6 +34,15 @@ on:
     tags:
       - 'perf-*'
 
+# The engine under measurement (MlFront 2.4.3.17, pinned in dk.u actual_version)
+# is released to GAMMA only; production still serves the prior manifest. Point
+# the launcher at the gamma manifest host so the fresh-checkout build resolves
+# the 2.4.3.17 dk0/dk1, matching the container measurement that used the same
+# override (scripts/Invoke-DkRunInDocker.ps1 -DkBaseUrl). No production exposure.
+env:
+  DK1_BASE_URL: https://gamma.diskuv.com/dk
+  DK0_BASE_URL: https://gamma.diskuv.com/dk
+
 jobs:
   dk:
     strategy:
