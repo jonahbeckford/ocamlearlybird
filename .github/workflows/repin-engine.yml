@@ -165,8 +165,9 @@ jobs:
         # WHY THIS STEP EXISTS. Repinning the import rewrites etc/dk/i and leaves
         # etc/dk/v alone, and etc/dk/v holds a GENERATED driver that names a rule
         # by version. On 2026-09-06 that cost a whole measurement: the driver named
-        # CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedClosure@1.0.26, the newly
-        # imported CommonsLang_OCaml 0.1.20260902235611 offers @1.0.28 ALONE, and
+        # the CommonsLang_OCaml.Dk.OpamBuild.F_BuildLockedClosure rule at a stale
+        # version, while the newly imported CommonsLang_OCaml offered only a newer
+        # one, and
         # both dk legs died with "Could not get rule ... does not exist" after the
         # 90-minute matrix had already been dispatched.
         #
@@ -223,6 +224,25 @@ jobs:
             echo "::error::the driver is STILL stale after regenerating it; the log above is the evidence"
             exit "$after"
           fi
+
+          # Refresh regenerates ONLY the GenerateDriver (closure/DevPrefix) family.
+          # The Src and Final drivers are owned by the separate GenerateSrc and
+          # GenerateFinal rules; a CLO rule-version bump moves those too, and the
+          # closure refresh-check cannot see it, so they go stale undetected (the
+          # 2026-09-14 measurement hit exactly this). Regenerate both here,
+          # discovering the rule version from the same import and the root package
+          # id from the drivers. GenerateSrc/GenerateFinal self-discover the lock
+          # root from pkg=, so no root=/roots[]= is needed here.
+          srcref=$(grep -o 'CommonsLang_OCaml\.Dk\.OpamLock\.GenerateSrc@[0-9][0-9.]*' "$imp" | sort -uV | tail -1)
+          finalref=$(grep -o 'CommonsLang_OCaml\.Dk\.OpamLock\.GenerateFinal@[0-9][0-9.]*' "$imp" | sort -uV | tail -1)
+          pkgid=$(grep -ohE 'NotHackwaly_Ocamlearlybird\.Ocamlearlybird@[0-9][0-9.]*' etc/dk/v/NotHackwaly_Ocamlearlybird/*.values.jsonc | sort -uV | tail -1)
+          if [ -z "$srcref" ] || [ -z "$finalref" ] || [ -z "$pkgid" ]; then
+            echo "::error::could not discover GenerateSrc/GenerateFinal rule version or the earlybird pkg id"
+            exit 1
+          fi
+          echo "regenerating Src with $srcref and Final with $finalref for $pkgid"
+          ./dk1 dialog "$srcref" pkg="$pkgid"
+          ./dk1 dialog "$finalref" pkg="$pkgid"
 
           echo "--- etc/dk/v diff ---"
           git --no-pager diff -- etc/dk/v/ || true
