@@ -42,20 +42,6 @@ on:
           - 'false'
           - 'true'
         default: 'false'
-      refresh:
-        description: >-
-          Refresh the closure's TRANSITIVE pins even when engine_version and
-          clo_version are already what dk.u holds. Without this, the repin step
-          refuses a no-op dk.u; with it, dk.u is left unchanged and dk0 update
-          still runs, so newer transitive dependencies (CommonsBase_*) are
-          pulled and the import and driver are regenerated. Use it to align two
-          branches that pin the same engine and CommonsLang_OCaml but drifted
-          apart on transitive deps.
-        type: choice
-        options:
-          - 'false'
-          - 'true'
-        default: 'false'
 
 jobs:
   repin:
@@ -80,68 +66,28 @@ jobs:
           ls -1 etc/dk/i/
           cp -a etc/dk/i .regen/i-before
           cp dk.u .regen/dk.u.before
+          # The CLO tag before the repin, for the values.json diff after regeneration.
+          sed -n 's/.*repo="dkpkg\/CommonsLang_OCaml", tag="\([^"]*\)".*/\1/p' dk.u | head -1 > .regen/old_clo
 
       - name: Repin dk.u to the requested engine and CommonsLang_OCaml
         env:
           ENGINE: ${{ inputs.engine_version }}
           CLO: ${{ inputs.clo_version }}
-          REFRESH: ${{ inputs.refresh }}
         run: |
           set -eu
-          python3 - <<'PY'
-          import os, re, sys, pathlib
-
-          eng = os.environ["ENGINE"].strip()
-          clo = os.environ["CLO"].strip()
-          if not eng or not clo:
-              sys.exit("REFUSING: engine_version and clo_version must both be non-empty")
-
-          p = pathlib.Path("dk.u")
-          s = p.read_text(encoding="utf-8")
-          orig = s
-
-          # The engine appears twice: in the %% directive and as the bare quoted
-          # value beneath it. Both must move or the two disagree.
-          m = re.search(r'actual_version\("([0-9][0-9.]*)"\)', s)
-          if not m:
-              sys.exit("REFUSING: no actual_version directive found in dk.u")
-          old_eng = m.group(1)
-          s = s.replace('actual_version("' + old_eng + '")', 'actual_version("' + eng + '")')
-          pat = r"(?m)^([ \t]*)'" + re.escape(old_eng) + r"'[ \t]*$"
-          n_eng = len(re.findall(pat, s))
-          if n_eng != 1:
-              sys.exit("REFUSING: expected exactly 1 bare quoted %s line, found %d" % (old_eng, n_eng))
-          s = re.sub(pat, lambda mo: mo.group(1) + "'" + eng + "'", s)
-
-          # The %% directive carries tag=, the emitted block carries version=.
-          # update rewrites the checksums; it does not choose the version, so
-          # both are set here.
-          m2 = re.search(r'repo="dkpkg/CommonsLang_OCaml", tag="([^"]+)"', s)
-          if not m2:
-              sys.exit("REFUSING: no CommonsLang_OCaml import directive found in dk.u")
-          old_clo = m2.group(1)
-          s = s.replace('repo="dkpkg/CommonsLang_OCaml", tag="' + old_clo + '"',
-                        'repo="dkpkg/CommonsLang_OCaml", tag="' + clo + '"')
-          vpat = 'version: "' + old_clo + '"'
-          n_v = s.count(vpat)
-          if n_v != 1:
-              sys.exit("REFUSING: expected exactly 1 occurrence of %s, found %d" % (vpat, n_v))
-          s = s.replace(vpat, 'version: "' + clo + '"')
-
-          if s != orig:
-              p.write_text(s, encoding="utf-8")
-              print("dk.u repinned: engine " + old_eng + " -> " + eng)
-              print("dk.u repinned: CommonsLang_OCaml " + old_clo + " -> " + clo)
-          elif os.environ.get("REFRESH", "").strip() == "true":
-              # dk.u already names the requested engine and CommonsLang_OCaml.
-              # In refresh mode this is expected: dk.u is left untouched and the
-              # later dk0 update step refreshes the transitive pins instead.
-              print("dk.u already at engine " + eng + " / CommonsLang_OCaml " + clo +
-                    "; refresh mode: leaving dk.u unchanged, refreshing transitive deps via update")
-          else:
-              sys.exit("REFUSING: dk.u is unchanged after both edits, which cannot be right")
-          pathlib.Path(".regen/old_clo").write_text(old_clo, encoding="utf-8")
-          PY
+          test -n "$ENGINE" && test -n "$CLO" || { echo "::error::engine_version and clo_version must both be non-empty"; exit 1; }
+          echo "repinning: engine -> $ENGINE, CommonsLang_OCaml -> $CLO"
+          # Repin THROUGH THE ENGINE, never by text-editing dk.u. self-update rewrites
+          # the %% actual_version command and its regenerated output pair; add upserts
+          # the CommonsLang_OCaml import by repo IDENTITY (the tag is excluded from the
+          # match, so a wave timestamp shared by sibling imports is irrelevant) and
+          # clears its output block, so the update step below re-fetches and rewrites
+          # the version + checksums + etc/dk/i. Both are idempotent: re-running at the
+          # same engine/tag is a no-op-safe upsert, so no refresh flag and no
+          # version-uniqueness guard are needed (the old text edit needed both, and
+          # broke when sibling imports shared a wave release timestamp).
+          ./dk1 self-update "$ENGINE"
+          ./dk1 add github-l2 dkpkg/CommonsLang_OCaml@"$CLO"
           echo "--- dk.u diff ---"
           git --no-pager diff -- dk.u
 
