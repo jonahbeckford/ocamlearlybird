@@ -1,20 +1,19 @@
 name: measure-performance
-# Head-to-head opam-vs-dk timing for the Quick Setup tier, which builds the
-# dependency closure from source, on Linux_x86_64 (ubuntu-latest) and
-# Windows_x86_64 (windows-latest). Each runner measures the host ABI natively.
-# Trigger from the Actions tab (workflow_dispatch) or by pushing a perf-* tag;
-# the perf workflow never runs on push or pull_request, so it stays off the PR
-# status checks.
+# Head-to-head opam-vs-dk timing for the High Performance tier, on the two ABIs
+# it ships as prebuilt objects: Linux_x86_64 (ubuntu-latest) and Windows_x86_64
+# (windows-latest). Each runner measures the host ABI natively, so the warm-run
+# number is the real re-run cost a user sees. Trigger from the Actions tab
+# (workflow_dispatch) or by pushing a perf-* tag; the perf workflow never runs
+# on push or pull_request, so it stays off the PR status checks.
 #
-# Every timed step prints `PHASE <name> ms=<n>` lines and a final SUMMARY line.
-# The dk track and the opam track produce the same runnable binary, so their
-# SUMMARY lines are directly comparable:
-#   dk    fresh -> binary : dk_build_cold  (compiles the whole closure)
+# The dk track resolves the prebuilt object with run-object, which lazily
+# fetches only the requested slot's object from the release. Every timed step
+# prints `PHASE <name> ms=<n>` lines and a final SUMMARY line, comparable to the
+# opam track:
+#   dk    fresh -> binary : dk_fetch_cold  (lazy-fetch prebuilt + materialize)
 #   opam  fresh -> binary : (setup-ocaml step) + opam_deps + opam_build_cold
 #   dk    re-run a binary : dk_run_warm
 #   opam  re-run a binary : opam_run_warm
-#   dk    edit one file    : dk_run_edit    (rebuilds the leaf package object)
-#   opam  edit one file    : opam_build_edit (dune's file-level incremental)
 on:
   workflow_dispatch:
     inputs:
@@ -30,6 +29,17 @@ on:
           - 'true'
           - 'false'
         default: 'true'
+      profile:
+        description: >-
+          Run the fetch-profile job, which repeats the dk run-object command
+          under `-d perf` so every remote artifact it opens is named. Off by
+          default: it adds a job to an ordinary measurement run and its output
+          is a log rather than a PHASE line.
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+        default: 'false'
   push:
     tags:
       - 'perf-*'
@@ -45,18 +55,38 @@ jobs:
           - os: windows-latest
             slot: Release.Windows_x86_64
     runs-on: ${{ matrix.os }}
-    # A cold from-source closure build plus native compilation; give the job
-    # generous headroom over the default and the ci.yml jobs.
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           lfs: true
 
+      # Seed the datastore LIVE from the latest published self-distribution,
+      # the documented consumer flow (CLO.md: restore then run-object). The
+      # committed etc/dk/i self-record was removed: no workflow advanced it, so
+      # it froze the measured datastore at an older CommonsLang_OCaml while the
+      # imports moved on, and run-object then re-paid the whole closure on every
+      # warm re-run. Restoring live always seeds the datastore built at the
+      # current CommonsLang_OCaml, by construction.
+      - name: dk restore the latest self-distribution (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./dk1 restore github-l2 jonahbeckford/ocamlearlybird
+
+      - name: dk restore the latest self-distribution (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\dk1.cmd restore github-l2 jonahbeckford/ocamlearlybird
+          if ($LASTEXITCODE -ne 0) { throw "restore failed ($LASTEXITCODE)" }
+
       # Linux uses the POSIX ./dk1 launcher (curl is present) and date-based
       # millisecond timing.
-      - name: dk cold build + warm run + edit rebuild (timed, Linux)
+      - name: dk fetch + reconcile run + warm run (timed, Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -67,18 +97,32 @@ jobs:
                     -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain >/dev/null; }
           echo "DK MEASURE STARTED $(date -u +%H:%M:%S) slot=$slot"
 
+          # First run lazily fetches the prebuilt object and materializes the
+          # runtime sandbox.
           a=$(now); run; b=$(now)
-          echo "PHASE dk_build_cold ms=$((b-a))"
+          echo "PHASE dk_fetch_cold ms=$((b-a))"
 
+          # Second run reconciles the working tree with the fetched release:
+          # when the tree drifted since the release was harvested (for example
+          # a changed Src value), dk pays a one-time local rebuild here. On an
+          # undrifted tree this equals the warm run.
           c=$(now); run; d=$(now)
-          echo "PHASE dk_run_warm ms=$((d-c))"
+          echo "PHASE dk_run_reconcile ms=$((d-c))"
 
-          printf '\n(* perf measurement touch *)\n' >> src/main/main.ml
-          ./dk1 update --no-imports
+          # Third run: the steady-state warm re-run cost. A healthy warm run
+          # leaves the trace store byte-identical (the engine cram's invariant),
+          # so hash it before and after instead of parsing progress messages.
+          h1=$(md5sum t/d/cts.1/trace | cut -d' ' -f1)
           e=$(now); run; f=$(now)
-          echo "PHASE dk_run_edit ms=$((f-e))"
+          echo "PHASE dk_run_warm ms=$((f-e))"
+          h2=$(md5sum t/d/cts.1/trace | cut -d' ' -f1)
+          silent=t
+          [ "$h1" != "$h2" ] && silent=f
 
-          echo "DK SUMMARY slot=$slot build_cold_ms=$((b-a)) run_warm_ms=$((d-c)) run_edit_ms=$((f-e))"
+          # Flag drift so a reconcile rebuild is never mistaken for warm cost.
+          drifted=f
+          if [ $((d-c)) -gt $(( (f-e) * 3 )) ]; then drifted=t; fi
+          echo "DK SUMMARY slot=$slot fetch_cold_ms=$((b-a)) reconcile_ms=$((d-c)) run_warm_ms=$((f-e)) tree_drifted_from_release=$drifted warm_silent=$silent"
           echo "DK MEASURE DONE $(date -u +%H:%M:%S)"
 
           # The same three readings, machine readable, for the gate job. Written
@@ -86,8 +130,21 @@ jobs:
           # cannot move a number: an earlier repair to this workflow moved console
           # writes inside a stopwatch and widened five of six Windows cells.
           mkdir -p "$RUNNER_TEMP/dk-phases"
-          printf 'dk_build_cold=%s\ndk_run_warm=%s\ndk_run_edit=%s\n' \
+          printf 'dk_fetch_cold=%s\ndk_run_reconcile=%s\ndk_run_warm=%s\n' \
             "$((b-a))" "$((d-c))" "$((f-e))" > "$RUNNER_TEMP/dk-phases/$slot.txt"
+
+          # Compatibility guard. A datastore whose baked CommonsLang_OCaml differs
+          # from the imported one makes run-object bind one key to two values and
+          # re-pay the closure on every warm run. A matched datastore emits ZERO
+          # such warnings; the cycle-54 mismatch emitted 40. The reconcile>3*warm
+          # drift check above cannot see this (both phases inflate together, so the
+          # ratio stays ~1). One untimed run, stderr captured, then asserted.
+          run 2>"$RUNNER_TEMP/compat.err" || true
+          if grep -q "binds one key to 2 different values" "$RUNNER_TEMP/compat.err"; then
+            n=$(grep -c "binds one key to 2 different values" "$RUNNER_TEMP/compat.err")
+            echo "::error::datastore/closure value-id mismatch: $n multi-value binding warning(s). The restored datastore was not built at the imported CommonsLang_OCaml, so the warm re-run re-pays the closure cost. Re-cut the self-distribution datastore at the current CommonsLang_OCaml."
+            exit 1
+          fi
 
       - name: Upload this slot's readings for the gate
         if: ${{ always() && runner.os == 'Linux' }}
@@ -99,7 +156,7 @@ jobs:
 
       # Windows uses the dk1.cmd launcher (bootstraps via PowerShell, no curl
       # dependency) and Stopwatch timing.
-      - name: dk cold build + warm run + edit rebuild (timed, Windows)
+      - name: dk fetch + reconcile run + warm run (timed, Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -109,7 +166,7 @@ jobs:
           # the Windows runner are expensive enough to move the numbers, so it
           # goes to a file and is printed after the stopwatch stops. The file
           # sits in the runner temp rather than the working tree, which the
-          # edit rebuild measures a change to.
+          # reconcile run compares against the release.
           $errlog = Join-Path $env:RUNNER_TEMP 'dk-run.err'
           function Run {
             & .\dk1.cmd run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 `
@@ -119,18 +176,25 @@ jobs:
           Write-Host "DK MEASURE STARTED $(Get-Date -Format HH:mm:ss) slot=$slot"
 
           $sw = [System.Diagnostics.Stopwatch]::StartNew(); Run; $cold = $sw.ElapsedMilliseconds
-          Write-Host "PHASE dk_build_cold ms=$cold"
+          Write-Host "PHASE dk_fetch_cold ms=$cold"
 
+          # Second run reconciles the working tree with the fetched release:
+          # a drifted tree pays a one-time local rebuild here. On an undrifted
+          # tree this equals the warm run.
+          $sw.Restart(); Run; $reconcile = $sw.ElapsedMilliseconds
+          Write-Host "PHASE dk_run_reconcile ms=$reconcile"
+
+          # Third run: the steady-state warm re-run cost. A healthy warm run
+          # leaves the trace store byte-identical (the engine cram's invariant),
+          # so hash it before and after instead of parsing progress messages.
+          $h1 = (Get-FileHash -Algorithm MD5 t\d\cts.1\trace).Hash
           $sw.Restart(); Run; $warm = $sw.ElapsedMilliseconds
           Write-Host "PHASE dk_run_warm ms=$warm"
+          $h2 = (Get-FileHash -Algorithm MD5 t\d\cts.1\trace).Hash
+          $silent = if ($h1 -ne $h2) { 'f' } else { 't' }
 
-          Add-Content -Path src/main/main.ml -Value "`n(* perf measurement touch *)`n"
-          & .\dk1.cmd update --no-imports
-          if ($LASTEXITCODE -ne 0) { throw "update failed ($LASTEXITCODE)" }
-          $sw.Restart(); Run; $edit = $sw.ElapsedMilliseconds
-          Write-Host "PHASE dk_run_edit ms=$edit"
-
-          Write-Host "DK SUMMARY slot=$slot build_cold_ms=$cold run_warm_ms=$warm run_edit_ms=$edit"
+          $drifted = if ($reconcile -gt (3 * $warm)) { 't' } else { 'f' }
+          Write-Host "DK SUMMARY slot=$slot fetch_cold_ms=$cold reconcile_ms=$reconcile run_warm_ms=$warm tree_drifted_from_release=$drifted warm_silent=$silent"
           Write-Host "DK ENGINE OUTPUT from the last timed run, printed outside the stopwatch"
           Get-Content $errlog
           Write-Host "DK MEASURE DONE $(Get-Date -Format HH:mm:ss)"
@@ -140,8 +204,17 @@ jobs:
           # cannot move a number.
           $phaseDir = Join-Path $env:RUNNER_TEMP 'dk-phases'
           New-Item -ItemType Directory -Force -Path $phaseDir | Out-Null
-          "dk_build_cold=$cold`ndk_run_warm=$warm`ndk_run_edit=$edit" |
+          "dk_fetch_cold=$cold`ndk_run_reconcile=$reconcile`ndk_run_warm=$warm" |
             Set-Content -NoNewline -Path (Join-Path $phaseDir "$slot.txt")
+
+          # Compatibility guard. A matched datastore emits zero multi-value
+          # bindings; the cycle-54 mismatch emitted many. $errlog holds the last
+          # timed run's engine stderr, so no extra run is needed here.
+          $hits = Select-String -Path $errlog -Pattern 'binds one key to 2 different values'
+          if ($hits) {
+            Write-Host "::error::datastore/closure value-id mismatch: $($hits.Count) multi-value binding warning(s). The restored datastore was not built at the imported CommonsLang_OCaml, so the warm re-run re-pays the closure cost. Re-cut the self-distribution datastore at the current CommonsLang_OCaml."
+            exit 1
+          }
 
       - name: Upload this slot's readings for the gate
         if: ${{ always() && runner.os == 'Windows' }}
@@ -249,3 +322,89 @@ jobs:
 
           echo "OPAM SUMMARY os=${{ matrix.os }} fresh_to_binary_ms=$((d-t0)) setup_ms=$((a-t0)) deps_ms=$((b-a)) build_cold_ms=$((d-c)) build_warm_ms=$((f-e)) run_warm_ms=$((h-g)) build_edit_ms=$((j-i))"
           echo "OPAM MEASURE DONE $(date -u +%H:%M:%S)"
+
+  # NAMES WHAT A SINGLE-OBJECT FETCH OPENS, and it lives in this workflow
+  # rather than its own because GitHub resolves workflow_dispatch by name only
+  # for a workflow it already knows, and only ci.yml is on the default branch.
+  # A separate file would be a workflow nothing can trigger.
+  #
+  # It exists because the only attribution this repository had for the per-ABI
+  # fan-out was a TIMESTAMP PROXY: 98 s of a 172 s phase binned into windows
+  # guessed to belong to ABIs nobody asked for. BuildPerf.note_index_fetch
+  # emits one `index-fetch` line per artifact carrying that artifact's PATH, so
+  # the split becomes a grouping of named paths instead of an estimate.
+  #
+  # What it does NOT give, stated so nobody sums the wrong column: `central_sz`
+  # is the size of the zip CENTRAL DIRECTORY that was range-fetched. It is not
+  # the transferred bytes and it is not the object's own size. Summing
+  # announced object sizes has already produced a meaningless figure here once.
+  #
+  # It needs nothing from the dk job and the measurement gate needs nothing
+  # from it, so it neither blocks nor is blocked by the published measurement.
+  fetch-profile:
+    if: ${{ inputs.profile == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      - name: Run run-object under -d perf
+        shell: bash
+        run: |
+          set -euo pipefail
+          slot=Release.Linux_x86_64
+          echo "PROFILE STARTED $(date -u +%H:%M:%S) slot=$slot"
+
+          # The perf lines go to stderr. Keep stdout out of the way, and do not
+          # let a non-zero exit hide the log: the log IS the measurement.
+          set +e
+          ./dk1 -d perf run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+            -s "$slot" -m ./bin/ocamlearlybird.exe -- --help=plain \
+            >/dev/null 2>perf.log
+          rc=$?
+          set -e
+          echo "PROFILE run_object_exit=$rc"
+
+          # PROVE THE INSTRUMENT FIRED before reading anything off it. An empty
+          # parse must never impersonate an answer: zero perf lines reads
+          # exactly like a finding of "no fan-out", and a misplaced flag is not
+          # a finding.
+          n=$(grep -c '^\[perf ' perf.log || true)
+          echo "PROFILE perf_lines=$n"
+          if [ "$n" -eq 0 ]; then
+            echo "PROFILE FAILED: no [perf lines in stderr." >&2
+            echo "Either -d perf sits in the wrong place on the command line, or this" >&2
+            echo "engine does not carry BuildPerf. Neither is a measurement." >&2
+            echo "First 40 stderr lines follow:" >&2
+            head -40 perf.log >&2
+            exit 1
+          fi
+
+          grep 'index-fetch' perf.log | sed 's/.* //' | sort -u > paths.txt
+          echo "PROFILE index_fetch_lines=$(grep -c 'index-fetch' perf.log || true)"
+          echo "PROFILE distinct_paths=$(wc -l < paths.txt)"
+
+          # LONGEST NAME FIRST, and each match is CONSUMED, so Linux_x86_64 is
+          # never counted a second time as Linux_x86. A count in this ecosystem
+          # was redone for exactly that reason.
+          for abi in Linux_x86_64_musl Linux_x86_64 Linux_x86_32 Linux_x86 \
+                     Darwin_arm64 Darwin_x86_64 Windows_x86_64 Windows_x86_32 Windows_x86; do
+            c=$(grep -c "$abi" paths.txt || true)
+            echo "PROFILE abi=$abi distinct_paths=$c"
+            grep -v "$abi" paths.txt > paths.rest || true
+            mv paths.rest paths.txt
+          done
+          echo "PROFILE abi=none distinct_paths=$(wc -l < paths.txt)"
+          echo "PROFILE DONE $(date -u +%H:%M:%S)"
+
+      - name: Upload the perf log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fetch-profile-${{ github.run_id }}
+          path: perf.log
+          if-no-files-found: error
+          retention-days: 30

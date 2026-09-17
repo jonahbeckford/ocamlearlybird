@@ -1,0 +1,32 @@
+{
+  "continuations": {
+    "attestation": {
+      "openbsd_signify": {
+        "signature": "untrusted comment: signed by key b98916ad7321875f\nRWS5iRatcyGHXzE+NoZhCVLSHmy7+nrpX4i3BctxIBgb5mz21Cu8JD9zd2ltJZl9z8cPyP+tAr0RGa77G0RBF/ixqJ8UcLoJTwc=\n"
+      }
+    },
+    "continuations_to_sign": {
+      "1.4": {
+        "application": { "name": "dk0", "version": "2.4.2+rev-313" },
+        "openbsd_signify": {
+          "public_key": "untrusted comment: NotHackwaly_Ocamlearlybird-1.4\nRWQZzxNUJsjQ/Jvo4twU6vt8wFACHOucOBipn+i2DWBI/UyQcG6fq+Sc\n"
+        }
+      },
+      "2.0": {
+        "application": { "name": "dk0", "version": "2.4.2+rev-313" },
+        "openbsd_signify": {
+          "public_key": "untrusted comment: NotHackwaly_Ocamlearlybird-2.0\nRWQh+ThJhASGk+QRWB7rnF33W5z90ZfFjxkRRgLjqLhW4wg0FSMowMjI\n"
+        }
+      }
+    }
+  },
+  "id": "NotHackwaly_Ocamlearlybird@1.3.0",
+  "license": { "spdx": "MIT" },
+  "producer": {
+    "application": { "name": "dk0", "version": "2.4.2+rev-313" },
+    "github_slsa_v1_l2": { "repository": "jonahbeckford/ocamlearlybird" },
+    "openbsd_signify": {
+      "public_key": "untrusted comment: NotHackwaly_Ocamlearlybird-1.3\nRWS5iRatcyGHX6NTdJ3Zrv9lhpWPrw9khAMAsHbWZa3vwkaCzDJRXrXR\n"
+    }
+  }
+}
