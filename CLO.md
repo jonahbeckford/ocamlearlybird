@@ -211,7 +211,181 @@ produces the same lock. Bump the commit deliberately, then re-solve with
 
 ---
 
-<!-- The "## High Performance" section is added on the dk1-high-performance branch. -->
+## High Performance
+
+Quick Setup builds ocamlearlybird's opam closure from source on your machine
+(on top of prebuilt toolchain objects), so it compiles and links native code and
+needs a system C toolchain on `PATH`. The High Performance path publishes the
+project's **own** prebuilt, attested objects in CI; on the consumer side the
+whole closure is a fetch-and-run of already-built objects, and the host needs
+neither a compiler nor a C toolchain.
+
+### Why prebuilt fetch is fast
+
+A prebuilt object fetches and runs. The OCaml 5.5 compiler ships as a prebuilt
+object; fetching and running it needs only dk:
+
+```sh
+./dk1 get-object CommonsLang_OCaml.Base@5.5.0 -s Release.Linux_x86_64 -d ./ocaml55
+./ocaml55/bin/ocamlopt.opt -version   # => 5.5.0
+```
+
+| Step | Linux_x86_64 |
+| --- | --- |
+| Fetch + extract the 5.5 compiler object | ~6 s |
+
+A single observation. `measure-performance.yml` does not time this step, so this
+figure carries no spread.
+
+`ldd ocamlopt.opt` resolves against the stock Ubuntu loader and C library, and
+both `ocamlopt.opt` and `ocamlc.opt` run. An already-linked object is an
+executable the loader accepts as-is, so a path that fetches already-linked
+objects skips the compile and link work that Quick Setup does on a cold build.
+
+### Publishing the project's own objects: `prepare-version` + `distribute`
+
+The cache that pays off for a project's dependency packages is the project's
+**own prior releases** (object ids embed the project namespace, so only this
+project's published `Pkg.*` objects serve its fetches). Setting that up is a
+two-command dk workflow, wired into CI:
+
+**1. `prepare-version MAJOR.MINOR`** mints the distribution signing keys and
+records the public halves in-tree:
+
+```sh
+./dk1 prepare-version --ci github 1.3
+```
+
+It prompts for the **library id** (`NotHackwaly_Ocamlearlybird` here, the
+`VendorQualifier_Unit` base the forms already use), then generates an
+Ed25519-style keypair for the current version and the upcoming minor/major
+versions. It **prints each secret key for you to store** (dk does not persist
+secrets) and writes only the public keys to `etc/dk/d/1.3.PATCH.dist.json`;
+`--ci github` scaffolds the release workflow. The license (`MIT`, from `dk.u`'s
+`## License`) is recorded if not already set.
+
+> **Key custody.** The secret keys are the project's release identity and must be
+> generated in a secure environment and stored in a secret manager / GitHub
+> Actions secret. They must never live in an ephemeral build container or a log.
+> (For that reason the keys were **not** generated in this document's CI
+> container; this section documents the workflow, and the repository owner runs
+> `prepare-version` where the secrets can be custodied.)
+
+**2. `distribute --library …@VERSION`** builds the objects on a compatible CI
+builder and publishes the signed bundle (under `dk-dist/`) as a GitHub release.
+`VERSION` must be a monotonically increasing patch of the prepared `MAJOR.MINOR`
+(e.g. `NotHackwaly_Ocamlearlybird@1.3.YYYYMMDDhhmm`). Consumers then:
+
+```sh
+./dk1 restore github-l2 jonahbeckford/ocamlearlybird
+./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+  -s Release.Linux_x86_64 -m ./bin/ocamlearlybird.exe -- --help=plain
+```
+
+(The `-m` member is `./bin/ocamlearlybird.exe`, the exact archive name,
+including the `./` prefix.)
+
+The `run-object` finds every object already built; the closure is a range-fetch
+of prebuilt, attested objects that runs on a stock host. Measured on GitHub
+Actions runners (`.github/workflows/measure-performance.yml`):
+
+<!--PERF:hp-fetch-->
+| Step | Linux_x86_64 | Windows_x86_64 |
+| --- | --- | --- |
+| Fetch the prebuilt closure and run | ~2 m 16 s ±19% | ~9 m 33 s ±6% |
+| Warm re-run | ~7 s ±2% | ~19 s ±27% |
+<!--/PERF:hp-fetch-->
+
+Every figure is the mean of repeated runs of
+`.github/workflows/measure-performance.yml` at one pin. Both fetch figures spend most of their
+time on the network, and the Linux one is the widest number on this page, so
+read it as a band rather than a point.
+
+**What the fetch figure includes.** It is the same one command as Quick Setup's
+first-build row, so its timed region covers the launcher self-installing the engine,
+the range-fetch of the prebuilt closure objects, and then running the produced
+binary. It compiles nothing, which is the whole difference from that row, and is
+why the number is mostly network. The warm row includes only the re-run.
+
+For comparison, on the same runners Quick Setup's first build is
+~3 m 11 s (Linux) and ~8 m 49 s (Windows), and `opam switch create` +
+`opam install` + `dune build` with `setup-ocaml` restoring a cached switch is
+~2 m 25 s (Linux) and ~7 m 19 s (Windows). With that cache turned off it
+is ~4 m 45 s (Linux) and ~13 m 5 s (Windows).
+
+> **`restore` and pruned releases.** `restore github-l2 ...` bulk-seeds the
+> store by walking the distribution's release chain. As of dk `2.4.2.334` a
+> pruned earlier release in that chain is tolerated: `restore` clears the
+> partial seed and continues with a cold materialization of the requested
+> release, emitting one WARNING, so removing superseded releases never breaks
+> it. `run-object` and `get-object` fetch only the requested slot's object
+> directly.
+
+## Fast dev loop (opam venv)
+
+The whole-package rebuild is the right unit for a reproducible release build;
+for a tighter inner loop, materialize an *opam venv*: a real, dune-usable opam
+prefix built from the same locked dependency closure and the same DkML 4.14.3
+compiler dk ships, so native `dune build -w` runs directly against the working
+tree and recompiles only the module you edited.
+
+Set it up once (the committed `Ocamlearlybird.DevPrefix` driver merges the
+non-local closure into a single cached prefix; the dialog stages that prefix,
+the compiler, and dune into `./opam-venv`):
+
+```sh
+./dk1 --trust-local-package NotHackwaly_Ocamlearlybird   dialog CommonsLang_OCaml.Dk.OpamLock.OpamVenv@1.1.14
+```
+
+(`--trust-local-package` lets the dialog resolve this workspace's own
+`NotHackwaly_Ocamlearlybird` forms; the venv is a maintainer inner loop against
+the working tree.)
+
+Then, in each shell:
+
+```powershell
+. .\opam-venv\env.ps1              # Windows PowerShell (recommended)
+# or:  source opam-venv/env.sh     # Unix / Git Bash
+dune build -w                      # incremental; only the edited module recompiles
+dune exec -- ocamlearlybird --help=plain
+```
+
+Inner-loop timings on Windows_x86_64 (edit a log string in
+`src/main/main.ml`; venv rows measured on a local workstation, the dk row on
+the CI runners):
+
+| Loop | Time |
+| --- | --- |
+| opam venv: edit + `dune build @check` (typecheck) | ~3 s |
+| opam venv: edit + `dune build src/main/main.exe` (native relink) | ~13 s |
+| dk: edit + `dk1 update` + `run-object` (whole package) | ~43 s ±16% |
+
+The dk row is the mean of the Quick Setup CI runs. The two venv rows are
+single observations on one workstation.
+
+**Parity.** The venv resolves to the same locked dependency versions and the same
+`CommonsLang_OCaml.DkML@4.14.3` compiler the reproducible dk build uses (it is
+driven from `dk.opam-lock.jsonc`), so `dune -w` behavior matches the shipped
+binary, and earlybird keeps debugging bytecode compiled by that same 4.14.3
+compiler.
+
+**Isolation.** `opam-venv/` and dune's `_build/` are invisible to both git and to
+dk's own reproducible build: the OpamVenv dialog drops a self-ignoring
+`.gitignore` and a `dune` `(dirs)` guard into `opam-venv/`, so a host
+`dune build` never scans it and `dk1 run-object` produces the identical binary.
+No tracked project file changes.
+
+**Refresh.** After a dependency change, regenerate the drivers and re-materialize:
+the zero-argument `Refresh@1.1.14` (see *Maintenance after adoption*) followed by
+`OpamVenv@1.1.14`. A repeated `OpamVenv` run with nothing changed returns
+quickly; a lock that drifted from the driver makes it stop and print the exact
+`Refresh` command.
+
+**Windows.** `env.ps1` imports MSVC (vcvars) automatically for native linking. If
+a native relink reports `LNK1104: cannot open ... main.exe`, a previous
+`ocamlearlybird` process still holds the executable open, so stop it and rebuild.
+For a VS Code task, launch `code .` from an activated shell so it inherits the
+environment.
 
 ## Editing a file and rebuilding
 
@@ -244,15 +418,15 @@ Every figure is the mean of repeated runs of
 
 ## What gets cached
 
-| Piece | Quick Setup source |
+| Piece | High Performance source |
 | --- | --- |
 | OCaml compiler toolchain (`CommonsLang_OCaml.DkML@4.14.3`) | fetched prebuilt from the `dkpkg` release |
 | Dune (`CommonsLang_OCaml.Dune@3.23.1`) | fetched prebuilt from the `dkpkg` release |
 | opam and the build utilities (coreutils, 7-Zip, GNU make) | fetched prebuilt from the `dkpkg` releases |
 | MSYS2 runtime (Windows slots) | fetched prebuilt from the `dkpkg` release |
-| The 53 locked dependency packages (lwt, dap, menhir, ppxlib, …) | built locally once, then cached |
-| The in-tree `earlybird` package | built locally, rebuilt on source edits |
-| Localized source and final executable forms | built locally (copy and archive steps) |
+| The 53 locked dependency packages (lwt, dap, menhir, ppxlib, …) | fetched prebuilt from this project's release |
+| The in-tree `earlybird` package | fetched prebuilt from this project's release; rebuilt locally on source edits |
+| Localized source and final executable forms | fetched prebuilt from this project's release; rebuilt locally on source edits |
 
 dk object ids are *recipe* addresses (a hash of the values-file content, the
 `module@version`, and the slot), and the recipe embeds this project's namespace,
