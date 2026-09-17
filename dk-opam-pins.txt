@@ -1,0 +1,32 @@
+# Pin table for CommonsLang_OCaml.Dk.OpamLock.Solve (see CLO.md "Quick Setup
+# for Maintainers"). Every line below is explained in that section.
+#
+# Line forms:
+#   repo NAME URL          opam repository for the solve (pin a commit with #COMMIT)
+#   pin NAME VERSION       hard version lock for one opam package
+#   float NAME             remove a pin inherited from an existing switch
+#   archexclude NAME ARCH  exclude a package on one architecture
+#
+# --- repositories ---
+# Pin ocaml/opam-repository to a single commit so the solved closure is
+# reproducible run-to-run (master on 2026-08-08):
+repo default git+https://github.com/ocaml/opam-repository.git#4f41495f12b15921ce982ac208c41b257d295515
+#
+# --- version locks ---
+# Lock the OCaml compiler to 4.14.3. The per-package build rule
+# (CommonsLang_OCaml.Dk.OpamBuild) compiles every package with the relocatable
+# CommonsLang_OCaml.DkML@4.14.3 toolchain, so the lock MUST resolve the 4.14.x
+# dependency closure. Without this pin the solver picks the newest OCaml (5.x)
+# and selects 5.x-only package versions that would not compile under 4.14.3.
+pin ocaml 4.14.3
+pin ocaml-base-compiler 4.14.3
+#
+# Lock dune to 3.23.1, the version the toolchain provides
+# (CommonsLang_OCaml.Dune@3.23.1). The toolchain lags opam-repository master, so
+# an unpinned solve pulls packages (e.g. dune-configurator 3.24.x) that declare
+# "dune" {>= "3.24"} and ship `(lang dune 3.24)`, which the provided Dune 3.23.1
+# refuses ("Version 3.24 of the dune language is not supported"). Pinning dune to
+# the provided version makes the solver pick dune-3.23-compatible package
+# versions. GENERAL RULE: pin every toolchain-provided tool (ocaml, dune) to the
+# exact version dk ships, so the solved closure matches what actually builds it.
+pin dune 3.23.1
