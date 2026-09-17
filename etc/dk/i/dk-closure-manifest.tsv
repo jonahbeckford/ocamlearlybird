@@ -1,8 +1,12 @@
 # dk closure manifest v1: library	version	values_file_sha256	source
 CommonsBase_Build	0.1.20260916234322	4843aa52a49cc9c02574562407e196893c8f786a62674574de028b86b6fac751	etc/dk/i/CommonsLang_OCaml.0.1.20260916234322.values.json
+CommonsBase_FileMagic	0.1.20260916234322	bdd8c70111bffdd6666e7dc2ff74bd92ce62faa64b2542fe217f321094a1c668	etc/dk/i/CommonsBase_FileMagic.0.1.20260916234322.values.json
 CommonsBase_FileMagic	0.1.20260916234322	bdd8c70111bffdd6666e7dc2ff74bd92ce62faa64b2542fe217f321094a1c668	etc/dk/i/CommonsLang_OCaml.0.1.20260916234322.values.json
 CommonsBase_GNU	0.1.20260916234322	b244854bfcba1585234befef8d966f5fce276df458829850d926c2d5869beb34	etc/dk/i/CommonsLang_OCaml.0.1.20260916234322.values.json
+CommonsBase_LLVM	0.1.20260916234322	e66256adfd231ea822bbad59bba124c3c851243082be0426af191ae18751611a	etc/dk/i/CommonsBase_FileMagic.0.1.20260916234322.values.json
 CommonsBase_LLVM	0.1.20260916234322	e66256adfd231ea822bbad59bba124c3c851243082be0426af191ae18751611a	etc/dk/i/CommonsLang_OCaml.0.1.20260916234322.values.json
+CommonsBase_Std	2.6.20260916234322	eafd48ee3331a4be2fee20055a7d2f88c33b53989c2dcc7f9a6b5ac51349f250	etc/dk/i/CommonsBase_FileMagic.0.1.20260916234322.values.json
+CommonsBase_Std	2.6.20260916234322	eafd48ee3331a4be2fee20055a7d2f88c33b53989c2dcc7f9a6b5ac51349f250	etc/dk/i/CommonsBase_Std.2.6.20260916234322.values.json
 CommonsBase_Std	2.6.20260916234322	eafd48ee3331a4be2fee20055a7d2f88c33b53989c2dcc7f9a6b5ac51349f250	etc/dk/i/CommonsLang_OCaml.0.1.20260916234322.values.json
 CommonsBase_Win32	0.1.20260916234322	2c26c7595a79bd6e88bb5665dcbb552d3b72c828ebe7385315c4e8f64a8ed7ce	etc/dk/i/CommonsLang_OCaml.0.1.20260916234322.values.json
 CommonsLang_OCaml	0.1.20260916234322	bbd0879f0808f8fbe230df44ba1d9a9804ce6773eb8ecda93af47d1a765a00e3	etc/dk/i/CommonsLang_OCaml.0.1.20260916234322.values.json
