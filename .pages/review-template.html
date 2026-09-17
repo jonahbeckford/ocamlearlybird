@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title><!--review-title--></title>
+
+<!--diff2html-css-->
+<!--diff2html-js-ui-->
+
+<style>
+  :root { --fg:#1f2328; --muted:#656d76; --bg:#ffffff; --border:#d0d7de; --accent:#0969da; --panel:#f6f8fa; }
+  @media (prefers-color-scheme: dark){ :root{ --fg:#e6edf3; --muted:#8b949e; --bg:#0d1117; --border:#30363d; --accent:#4493f8; --panel:#161b22; } }
+  html,body{ margin:0; background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+  .wrap{ max-width:1200px; margin:0 auto; padding:0 16px 72px; }
+  header.bar{ position:sticky; top:0; z-index:20; background:var(--bg);
+    border-bottom:1px solid var(--border); padding:12px 16px; font-size:13px; color:var(--muted); }
+  header.bar code{ color:var(--fg); background:var(--panel); padding:1px 5px; border-radius:5px; }
+  h1.title{ font-size:20px; margin:22px 0 2px; }
+  details.card{ border:1px solid var(--border); border-radius:8px; margin:16px 0; background:var(--panel); }
+  details.card>summary{ cursor:pointer; padding:10px 14px; font-weight:600; list-style:none; }
+  details.card>summary::-webkit-details-marker{ display:none; }
+  details.card>summary::before{ content:'\25B8'; margin-right:8px; color:var(--muted); }
+  details.card[open]>summary::before{ content:'\25BE'; }
+  .card .body{ padding:4px 18px 18px; }
+  .prose{ text-align:left; line-height:1.55; }
+  .prose h1,.prose h2{ border-bottom:1px solid var(--border); padding-bottom:.3em; }
+  .prose code{ background:var(--bg); border:1px solid var(--border); border-radius:5px; padding:1px 5px; font-size:.9em; }
+  .prose pre{ background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px; overflow:auto; }
+  .prose pre code{ border:0; padding:0; }
+  .prose table{ border-collapse:collapse; } .prose th,.prose td{ border:1px solid var(--border); padding:6px 10px; }
+  .prose a{ color:var(--accent); text-decoration:underline; } .prose a:visited{ color:var(--accent); }
+  ul.files{ columns:2; column-gap:32px; list-style:none; padding:0; margin:0; font-size:13px; }
+  ul.files li{ break-inside:avoid; margin:2px 0; }
+  ul.files a{ color:var(--accent); text-decoration:none; } ul.files a:hover{ text-decoration:underline; }
+  #diff{ text-align:left; margin-top:8px; }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const targetElement = document.getElementById('diff');
+    const diff2htmlUi = new Diff2HtmlUI(targetElement);
+    //diff2html-fileListToggle
+    //diff2html-fileContentToggle
+    //diff2html-synchronisedScroll
+    //diff2html-highlightCode
+  });
+</script>
+</head>
+<body>
+<header class="bar"><!--review-meta--></header>
+<div class="wrap">
+  <h1 class="title"><!--review-title--></h1>
+
+  <details class="card" open>
+    <summary>Description</summary>
+    <div class="body prose"><!--review-prbody--></div>
+  </details>
+
+  <details class="card" open>
+    <summary>Changed files (open the full file on GitHub)</summary>
+    <div class="body"><ul class="files"><!--review-filelinks--></ul></div>
+  </details>
+
+  <div id="diff"><!--diff2html-diff--></div>
+</div>
+</body>
+</html>

@@ -1,0 +1,52 @@
+name: Branch review pages
+# Rebuilds the static branch-review pages on every push to a review branch and
+# publishes them to the gh-pages branch (the current Pages source), so there is
+# no source switch and no downtime if a build fails. The builder lives in .pages/
+# (kept in the branch but excluded from the rendered review). PR-independent: the
+# description comes from each branch's .pages/description.md, not a pull request.
+on:
+  push:
+    branches:
+      - dk1-quick-setup
+      - dk1-high-performance
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Publish one at a time; queue rather than cancel so a push to one branch never
+# drops a build triggered by the other.
+concurrency:
+  group: pages-publish
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build the review pages
+        run: |
+          set -eu
+          cd .pages
+          npm install --no-save --no-audit --no-fund diff2html-cli marked
+          mkdir -p out
+          cp index.html out/index.html
+          touch out/.nojekyll
+          node build-review.mjs jonahbeckford ocamlearlybird dk1-quick-setup master out/quick-setup.html
+          node build-review.mjs jonahbeckford ocamlearlybird dk1-high-performance dk1-quick-setup out/high-performance.html
+      - name: Publish to gh-pages
+        run: |
+          set -eu
+          cd .pages/out
+          git init -q
+          git checkout -q -b gh-pages
+          git add -A
+          git -c user.email=github-actions[bot]@users.noreply.github.com \
+              -c user.name=github-actions[bot] commit -q -m "Publish branch review pages"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
