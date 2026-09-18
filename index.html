@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ocamlearlybird - dk branch reviews</title>
+<style>
+  :root{ --fg:#1f2328; --muted:#656d76; --bg:#fff; --border:#d0d7de; --accent:#0969da; --code-bg:#f6f8fa; }
+  @media (prefers-color-scheme: dark){ :root{ --fg:#e6edf3; --muted:#8b949e; --bg:#0d1117; --border:#30363d; --accent:#4493f8; --code-bg:#161b22; } }
+  body{ margin:0; background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; display:flex; min-height:100vh; align-items:flex-start; justify-content:center; }
+  main{ max-width:620px; padding:32px 24px; width:100%; box-sizing:border-box; }
+  h1{ font-size:20px; margin:0 0 12px; }
+  p{ font-size:14px; line-height:1.55; margin:10px 0; }
+  p.lead{ margin:0 0 10px; }
+  p.sub{ color:var(--muted); margin:0 0 20px; font-size:14px; }
+  p b{ color:var(--accent); }
+  pre.code{ background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:12px 14px; overflow-x:auto; margin:0 0 16px; }
+  pre.code code{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; line-height:1.5; color:var(--fg); white-space:pre; }
+  hr{ border:0; border-top:1px solid var(--border); margin:26px 0 20px; }
+  a.card{ display:block; border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin:10px 0; text-decoration:none; color:inherit; }
+  a.card:hover{ border-color:var(--accent); }
+  a.card b{ color:var(--accent); font-size:15px; }
+  a.card span{ display:block; color:var(--muted); font-size:13px; margin-top:3px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ocamlearlybird &middot; dk</h1>
+  <p class="lead">Running ocamlearlybird using <a href="https://diskuv.com/dk/" style="color:var(--accent);text-decoration:none;">dk</a> is:</p>
+  <pre class="code"><code>git clone --branch dk1-high-performance https://github.com/jonahbeckford/ocamlearlybird.git
+cd ocamlearlybird
+./dk1 restore github-l2 jonahbeckford/ocamlearlybird
+./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+  -s Release.execution_abi -m ./bin/ocamlearlybird.exe -- --help</code></pre>
+  <p>That is the technique from the <b>dk1-high-performance</b> branch. There is also a <b>dk1-quick-setup</b> branch which trades off an easier adoption for maintainers with a slower download for ocamlearlybird users.</p>
+  <p>Both branch reviews you see below have performance numbers.</p>
+
+  <hr />
+
+  <p class="sub" style="margin:0 0 4px;">Branch reviews &middot; net diff of each branch against its base</p>
+  <a class="card" href="quick-setup.html"><b>Quick Setup &rarr;</b><span>dk1-quick-setup vs master &middot; build from source</span></a>
+  <a class="card" href="high-performance.html"><b>High Performance &rarr;</b><span>dk1-high-performance vs dk1-quick-setup &middot; prebuilt datastore</span></a>
+  <p class="sub" style="margin:20px 0 4px;">Adoption guide (rendered CLO.md)</p>
+  <a class="card" href="high-performance-clo.html"><b>CLO.md adoption guide &rarr;</b><span>Quick Setup, High Performance, and the opam venv dev loop</span></a>
+
+  <p class="sub" style="margin:26px 0 0;">Found a bug? <a href="https://github.com/dkpkg/CommonsLang_OCaml/issues" style="color:var(--accent);text-decoration:none;">Report it on the CommonsLang_OCaml issue tracker &rarr;</a></p>
+</main>
+</body>
+</html>
