@@ -6,7 +6,7 @@ Stacks on the `dk1-quick-setup` branch. This is the **High Performance** branch:
 # preseed the datastore and then run
 ./dk1 restore github-l2 jonahbeckford/ocamlearlybird
 ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
-  -s Release.Linux_x86_64 -m ./bin/ocamlearlybird.exe -- --help=plain
+  -s Release.execution_abi -m ./bin/ocamlearlybird.exe -- --help=plain
 ```
 
 See [CLO.md](https://github.com/jonahbeckford/ocamlearlybird/blob/dk1-high-performance/CLO.md) for the High Performance guide: publishing with `prepare-version` + `distribute`, the fast dev loop (opam venv), and the **What gets cached** table.
