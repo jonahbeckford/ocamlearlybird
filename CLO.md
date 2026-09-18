@@ -133,7 +133,98 @@ produces the same lock. Bump the commit deliberately, then re-solve with
 
 ---
 
-<!-- The "## High Performance" section is added on the dk1-high-performance branch. -->
+## High Performance
+
+Quick Setup builds ocamlearlybird's opam closure from source on your machine
+(on top of prebuilt toolchain objects), so it compiles and links native code and
+needs a system C toolchain on `PATH`. The High Performance path publishes the
+project's **own** prebuilt objects in CI; on the consumer side the
+whole closure is a fetch-and-run of already-built objects.
+
+### Publishing the project's own objects: `prepare-version` + `distribute`
+
+The cache that pays off for a project's dependency packages is the project's
+**own prior releases** (object ids embed the project namespace, so only this
+project's published `Pkg.*` objects serve its fetches). Setting that up is a
+two-command dk workflow, wired into CI:
+
+**1. `prepare-version MAJOR.MINOR`** mints the distribution signing keys and
+records the public halves in-tree:
+
+```sh
+./dk1 prepare-version --ci github 1.3
+```
+
+It prompts for the **library id** (`NotHackwaly_Ocamlearlybird` here, the
+`VendorQualifier_Unit` base the forms already use), then generates an
+Ed25519-style keypair for the current version and the upcoming minor/major
+versions. It **prints each secret key for you to store** (dk does not persist
+secrets) and writes only the public keys to `etc/dk/d/1.3.PATCH.dist.json`;
+`--ci github` scaffolds the release workflow. The license (`MIT`, from `dk.u`'s
+`## License`) is recorded if not already set.
+
+> **Key custody.** The secret keys are the project's release identity and must be
+> generated in a secure environment and stored in a secret manager / GitHub
+> Actions secret. They must never live in an ephemeral build container or a log.
+> (For that reason the keys were **not** generated in this document's CI
+> container; this section documents the workflow, and the repository owner runs
+> `prepare-version` where the secrets can be custodied.)
+
+**2. `distribute --library …@VERSION`** builds the objects on a compatible CI
+builder and publishes the signed bundle (under `dk-dist/`) as a GitHub release.
+`VERSION` must be a monotonically increasing patch of the prepared `MAJOR.MINOR`
+(e.g. `NotHackwaly_Ocamlearlybird@1.3.YYYYMMDDhhmm`). Consumers then:
+
+```sh
+./dk1 restore github-l2 jonahbeckford/ocamlearlybird
+./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+  -s Release.Linux_x86_64 -m ./bin/ocamlearlybird.exe -- --help=plain
+```
+
+(The `-m` member is `./bin/ocamlearlybird.exe`, the exact archive name,
+including the `./` prefix.)
+
+## Fast dev loop (opam venv)
+
+For productivity you can get incremental `dune build -w` builds and IDE support. Set up a dk-enabled opam environment once:
+
+```sh
+./dk1 --trust-local-package NotHackwaly_Ocamlearlybird   dialog CommonsLang_OCaml.Dk.OpamLock.OpamVenv@1.1.14
+```
+
+(`--trust-local-package` lets the dialog resolve this workspace's own
+`NotHackwaly_Ocamlearlybird` forms; the venv is a maintainer inner loop against
+the working tree.)
+
+Then, in each shell:
+
+```powershell
+. .\opam-venv\env.ps1              # Windows PowerShell (recommended)
+# or:  source opam-venv/env.sh     # Unix / Git Bash
+dune build -w                      # incremental; only the edited module recompiles
+dune exec -- ocamlearlybird --help=plain
+```
+
+**Parity.** The venv resolves to the same locked dependency versions and the same
+`CommonsLang_OCaml.DkML@4.14.3` compiler the reproducible dk build uses (it is
+driven from `dk.opam-lock.jsonc`), so `dune -w` behavior matches the shipped
+binary, and earlybird keeps debugging bytecode compiled by that same 4.14.3
+compiler.
+
+**Isolation.** `opam-venv/` and dune's `_build/` are invisible to both git and to
+dk's own reproducible build: the OpamVenv dialog drops a self-ignoring
+`.gitignore` and a `dune` `(dirs)` guard into `opam-venv/`, so a host
+`dune build` never scans it and `dk1 run-object` produces the identical binary.
+
+**Refresh.** After a dependency change, regenerate the drivers and re-materialize:
+the zero-argument `Refresh@1.1.14` (see *Maintenance after adoption*) followed by
+`OpamVenv@1.1.14`.
+
+**Windows.** `env.ps1` imports MSVC (vcvars) automatically for native linking. If
+a native relink reports `LNK1104: cannot open ... main.exe`, a previous
+`ocamlearlybird` process still holds the executable open, so stop it and rebuild.
+For a VS Code task, launch `code .` from an activated shell so it inherits the
+environment.
 
 ## Editing a file and rebuilding
 
@@ -154,15 +245,15 @@ external package object stays cached and is reused untouched.
 
 ## What gets cached
 
-| Piece | Quick Setup source |
+| Piece | High Performance source |
 | --- | --- |
 | OCaml compiler toolchain (`CommonsLang_OCaml.DkML@4.14.3`) | fetched prebuilt from the `dkpkg` release |
 | Dune (`CommonsLang_OCaml.Dune@3.23.1`) | fetched prebuilt from the `dkpkg` release |
 | opam and the build utilities (coreutils, 7-Zip, GNU make) | fetched prebuilt from the `dkpkg` releases |
 | MSYS2 runtime (Windows slots) | fetched prebuilt from the `dkpkg` release |
-| The 53 locked dependency packages (lwt, dap, menhir, ppxlib, …) | built locally once, then cached |
-| The in-tree `earlybird` package | built locally, rebuilt on source edits |
-| Localized source and final executable forms | built locally (copy and archive steps) |
+| The 53 locked dependency packages (lwt, dap, menhir, ppxlib, …) | fetched prebuilt from this project's release |
+| The in-tree `earlybird` package | fetched prebuilt from this project's release; rebuilt locally on source edits |
+| Localized source and final executable forms | fetched prebuilt from this project's release; rebuilt locally on source edits |
 
 A dk object id is a hash of the values-file content, the `module@version`, and
 the slot, and the id embeds this project's namespace. A
