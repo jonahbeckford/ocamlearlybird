@@ -49,13 +49,13 @@ vendored `./dk1` launcher, which self-installs the pinned version on first run.)
 
 ```sh
 ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
-  -s Release.Linux_x86_64 \
+  -s Release.execution_abi \
   -m bin/ocamlearlybird.exe \
-  -- --help=plain
+  -- --help
 ```
 
-- `-s Release.Linux_x86_64` selects the ABI slot (swap for `Release.Darwin_arm64`
-  etc. on other hosts).
+- `-s Release.execution_abi` selects the object built for the host you are on, so the
+  same command works on Linux, macOS and Windows without editing the slot.
 - `-m bin/ocamlearlybird.exe` selects the member of the built object to execute.
 - everything after `--` is passed to the debug adapter.
 
@@ -80,7 +80,7 @@ curl -fsSL https://diskuv.com/dk/vendor.sh | sh
 ./dk1 update
 # 6. build and run the debug adapter
 ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
-  -s Release.Linux_x86_64 -m ./bin/ocamlearlybird.exe -- --help=plain
+  -s Release.execution_abi -m ./bin/ocamlearlybird.exe -- --help
 ```
 
 `ns=` keeps this fork's committed third-party namespace; a maintainer adopting
@@ -143,7 +143,7 @@ The supported flow after editing a source file:
 # edit e.g. src/main/main.ml, then:
 ./dk1 update --no-imports          # recompute workspace-asset checksums in dk.u
 ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
-  -s Release.Linux_x86_64 -m bin/ocamlearlybird.exe -- --help=plain
+  -s Release.execution_abi -m bin/ocamlearlybird.exe -- --help
 ```
 
 dk0/dk1 re-checksum workspace assets **only on `update`**, so `dk1 update` is what

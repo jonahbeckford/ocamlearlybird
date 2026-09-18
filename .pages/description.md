@@ -6,7 +6,7 @@ After cloning, a user needs one command (the vendored launcher self-installs):
 
 ```sh
 ./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
-  -s Release.Linux_x86_64 -m bin/ocamlearlybird.exe -- --help=plain
+  -s Release.execution_abi -m bin/ocamlearlybird.exe -- --help=plain
 ```
 
 See [CLO.md](https://github.com/jonahbeckford/ocamlearlybird/blob/dk1-quick-setup/CLO.md) for the fully worked adoption guide (Users and Maintainers), including the six-command adoption sequence, the pin table delta, and the reason `dap` is held at `{>= "1.0.6" & < "1.1.0"}` on the 4.14.3 toolchain.
