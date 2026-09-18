@@ -36,7 +36,10 @@ jobs:
           cd .pages
           npm install --no-save --no-audit --no-fund diff2html-cli marked
           mkdir -p out
-          cp index.html out/index.html
+          # The site index is canonical on dk1-high-performance, so a push to
+          # either review branch publishes the same index (no last-push-wins drift).
+          git -C .. fetch -q origin dk1-high-performance
+          git -C .. show origin/dk1-high-performance:.pages/index.html > out/index.html
           touch out/.nojekyll
           node build-review.mjs jonahbeckford ocamlearlybird dk1-quick-setup master out/quick-setup.html
           node build-review.mjs jonahbeckford ocamlearlybird dk1-high-performance dk1-quick-setup out/high-performance.html
