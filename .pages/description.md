@@ -17,17 +17,17 @@ The dk packages this build depends on have been **100% AI generated and maintain
 
 ## Performance
 
-Performance was measured on GitHub Actions runners with dk <!--VER:dk-->2.4.3.21<!--/VER:dk--> and opam 2.5.2 (`.github/workflows/measure-performance.yml`, which also measures a conventional `opam switch create` + `opam install . --deps-only` + `dune build` on the same runners, compiler install included). The ± is the sample standard deviation over the mean; the dk numbers are the mean over 8 runs, and each opam and High Performance number the mean over 4:
+Performance was measured on GitHub Actions runners with dk <!--VER:dk-->2.4.3.22<!--/VER:dk--> and opam 2.5.2 (`.github/workflows/measure-performance.yml`, which also measures a conventional `opam switch create` + `opam install . --deps-only` + `dune build` on the same runners, compiler install included). The ± is the sample standard deviation over the mean; the dk numbers are the mean over 8 runs, and each opam and High Performance number the mean over 4:
 
 <!--PERF:comparison-pr1-->
 | Step | dk Quick Setup | opam nocache + dune (desktop) | opam cache + dune |
 | --- | --- | --- | --- |
-| Linux: fresh checkout to a runnable binary | ~3 m 7 s ±7% | ~4 m 59 s ±10% | ~2 m 38 s ±8% |
-| Linux: re-run the built binary | ~7 s ±6% | ~0.1 s ±7% | ~0.1 s ±7% |
-| Linux: edit one file, rebuild | ~20 s ±17% | ~0.2 s ±7% | ~0.2 s ±7% |
-| Windows: fresh checkout to a runnable binary | ~8 m 48 s ±9% | ~13 m 56 s ±5% | ~10 m 50 s ±28% |
-| Windows: re-run the built binary | ~17 s ±38% | ~1.0 s ±15% | ~1.0 s ±15% |
-| Windows: edit one file, rebuild | ~48 s ±10% | ~1.2 s ±12% | ~1.2 s ±12% |
+| Linux: fresh checkout to a runnable binary | ~2 m 55 s ±6% | ~5 m 12 s ±10% | ~2 m 53 s ±3% |
+| Linux: re-run the built binary | ~5 s ±17% | ~0.1 s ±10% | ~0.1 s ±10% |
+| Linux: edit one file, rebuild | ~20 s ±12% | ~0.2 s ±8% | ~0.2 s ±8% |
+| Windows: fresh checkout to a runnable binary | ~8 m 35 s ±9% | ~13 m 7 s ±15% | ~6 m 32 s ±3% |
+| Windows: re-run the built binary | ~10 s ±9% | ~1.0 s ±19% | ~1.0 s ±19% |
+| Windows: edit one file, rebuild | ~45 s ±11% | ~1.2 s ±18% | ~1.2 s ±18% |
 <!--/PERF:comparison-pr1-->
 
 **What each fresh checkout figure includes.** The columns reach a runnable binary through different work, and they also stop in different places, so the numbers are comparable only once both are named. The dk figure is one command, `./dk1 run-object ... -- --help=plain`, and its timed region covers the vendored launcher self-installing the engine pinned in `dk.u`, the lazy fetch of the prebuilt toolchain objects, the build of the 53-package locked closure and the `earlybird` package, and then RUNNING the produced binary. Both opam figures run from a stamp taken after checkout, through `setup-ocaml` (switch create and compiler install) and `opam install . --deps-only`, to the end of `dune build @install`.
@@ -40,15 +40,15 @@ The `dk1-high-performance` branch stacks on this one and requires GitHub Actions
 <!--PERF:hpqs-pr1-->
 | Step | dk High Performance (dk1-high-performance) | Quick Setup, for comparison |
 | --- | --- | --- |
-| Linux: fresh checkout to a runnable binary | ~1 m 40 s ±6% | ~3 m 7 s ±7% |
-| Linux: re-run the built binary | ~6 s ±15% | ~7 s ±6% |
-| Windows: fresh checkout to a runnable binary | ~2 m 18 s ±13% | ~8 m 48 s ±9% |
-| Windows: re-run the built binary | ~14 s ±5% | ~17 s ±38% |
+| Linux: fresh checkout to a runnable binary | ~1 m 31 s ±20% | ~2 m 55 s ±6% |
+| Linux: re-run the built binary | ~5 s ±12% | ~5 s ±17% |
+| Windows: fresh checkout to a runnable binary | ~2 m 31 s ±13% | ~8 m 35 s ±9% |
+| Windows: re-run the built binary | ~12 s ±6% | ~10 s ±9% |
 <!--/PERF:hpqs-pr1-->
 
 ## What's in the diff
 
-- `dk0`/`dk1`/`dk0.cmd`/`dk1.cmd`: vendored self-installing launchers, pinned to dk engine **<!--VER:dk-->2.4.3.21<!--/VER:dk-->**
+- `dk0`/`dk1`/`dk0.cmd`/`dk1.cmd`: vendored self-installing launchers, pinned to dk engine **<!--VER:dk-->2.4.3.22<!--/VER:dk-->**
 - `dk.u`: workspace script with the pinned `CommonsLang_OCaml` toolchain import and source-tree asset checksums
 - `dune-project`, `earlybird.opam`: the build inputs the dk recipe consumes
 - `dk-opam-pins.txt`, `dk.opam-lock.jsonc`: the solver pin table and the solved per-slot dependency lock
