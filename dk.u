@@ -11,6 +11,10 @@ MIT
 
 ## workspace
 
+  %% actual_version("2.4.3.22")
+  'actual_version'
+  '2.4.3.22'
+
 The workspace assets below are the inputs of the dk build: the dune project
 files, the `src/` tree, and the checked-in opam lock. After editing any of
 them run `./dk1 update --no-imports` to refresh the recorded checksums.
