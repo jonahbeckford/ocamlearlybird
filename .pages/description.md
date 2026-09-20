@@ -17,22 +17,22 @@ The dk packages this build depends on have been **100% AI generated and maintain
 
 ## Performance
 
-Performance was measured on GitHub Actions runners with dk <!--VER:dk-->2.4.3.21<!--/VER:dk--> and opam 2.5.2 (`.github/workflows/measure-performance.yml`). The ± is the sample standard deviation over the mean; the High Performance numbers are the mean over 4 runs and the Quick Setup comparison numbers the mean over 8. The right column is the `dk1-quick-setup` branch's Quick Setup number for the same step:
+Performance was measured on GitHub Actions runners with dk <!--VER:dk-->2.4.3.22<!--/VER:dk--> and opam 2.5.2 (`.github/workflows/measure-performance.yml`). The ± is the sample standard deviation over the mean; the High Performance numbers are the mean over 4 runs and the Quick Setup comparison numbers the mean over 8. The right column is the `dk1-quick-setup` branch's Quick Setup number for the same step:
 
 <!--PERF:hpqs-pr2-->
 | Step | dk High Performance | Quick Setup, for comparison |
 | --- | --- | --- |
-| Linux: fresh checkout to a runnable binary | ~1 m 40 s ±6% | ~3 m 7 s ±7% |
-| Linux: re-run the built binary | ~6 s ±15% | ~7 s ±6% |
-| Windows: fresh checkout to a runnable binary | ~2 m 18 s ±13% | ~8 m 48 s ±9% |
-| Windows: re-run the built binary | ~14 s ±5% | ~17 s ±38% |
+| Linux: fresh checkout to a runnable binary | ~1 m 31 s ±20% | ~2 m 55 s ±6% |
+| Linux: re-run the built binary | ~5 s ±12% | ~5 s ±17% |
+| Windows: fresh checkout to a runnable binary | ~2 m 31 s ±13% | ~8 m 35 s ±9% |
+| Windows: re-run the built binary | ~12 s ±6% | ~10 s ±9% |
 <!--/PERF:hpqs-pr2-->
 
 **What each fresh checkout figure includes.** Both columns are the same one command, `./dk1 run-object ... -- --help=plain`, whose timed region covers the vendored launcher self-installing the engine pinned in `dk.u`, obtaining the 53-package locked closure and the `earlybird` package, and then RUNNING the produced binary. The difference is the high performance branch uses the `restore` command which makes available all ocamlearlybird dependencies that were prebuilt in the ocamlearlybird GitHub Actions.
 
 ## What's in the diff (beyond `dk1-quick-setup`)
 
-- `.github/workflows/distribute-1.3.yml`: the build matrix (5 `distribute` slots and `combine`), dk engine `<!--VER:dk-->2.4.3.21<!--/VER:dk-->`, `trust-packages: CommonsLang_OCaml CommonsBase_FileMagic`
+- `.github/workflows/distribute-1.3.yml`: the build matrix (5 `distribute` slots and `combine`), dk engine `<!--VER:dk-->2.4.3.22<!--/VER:dk-->`, `trust-packages: CommonsLang_OCaml CommonsBase_FileMagic`
 - `.github/workflows/measure-performance.yml`: the High Performance timing (dk restore + three `run-object` runs: fetch, reconcile, warm) and the datastore-compatibility guard
 - `scripts/expected-measurement.json`: the slots the completeness gate requires, extended for the High Performance datastore
 - `dk.u`: the added `CommonsBase_Std` and `CommonsBase_FileMagic` imports the datastore path needs
