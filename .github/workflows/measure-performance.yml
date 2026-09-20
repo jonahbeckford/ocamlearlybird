@@ -45,14 +45,6 @@ on:
     tags:
       - 'perf-*'
 
-# Observation pin: resolve the dk engine from the dk-dist/2.4.3.22 release, the
-# first carrying the request-slot narrowing of the lazy-import widen, so the
-# fetch-profile run measures that engine instead of floating on the latest
-# manifest. The launcher reads these and appends manifest.txt.
-env:
-  DK0_BASE_URL: https://gitlab.com/api/v4/projects/60486861/packages/generic/dk-dist/2.4.3.22
-  DK1_BASE_URL: https://gitlab.com/api/v4/projects/60486861/packages/generic/dk-dist/2.4.3.22
-
 jobs:
   dk:
     strategy:
