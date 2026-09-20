@@ -45,6 +45,14 @@ on:
     tags:
       - 'perf-*'
 
+# Observation pin: resolve the dk engine from the dk-dist/2.4.3.22 release, the
+# first carrying the request-slot narrowing of the lazy-import widen, so the
+# fetch-profile run measures that engine instead of floating on the latest
+# manifest. The launcher reads these and appends manifest.txt.
+env:
+  DK0_BASE_URL: https://gitlab.com/api/v4/projects/60486861/packages/generic/dk-dist/2.4.3.22
+  DK1_BASE_URL: https://gitlab.com/api/v4/projects/60486861/packages/generic/dk-dist/2.4.3.22
+
 jobs:
   dk:
     strategy:
@@ -289,7 +297,7 @@ jobs:
         shell: bash
         run: echo "OPAM_T0=$(date +%s%3N)" >> "$GITHUB_ENV"
 
-      # Matches the dk-locked compiler (CommonsLang_OCaml.DkML@4.14.3) so the
+      # Matches the dk-locked compiler (CommonsLang_OCaml.DkML@4.14.3001) so the
       # opam and dk tracks build the same package set with the same compiler.
       - name: Set up OCaml 4.14 (switch create + compiler install)
         uses: ocaml/setup-ocaml@v3
