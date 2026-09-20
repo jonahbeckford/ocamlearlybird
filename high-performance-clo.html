@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CLO.md · dk1-high-performance</title>
+<style>
+  :root { --fg:#1f2328; --muted:#656d76; --bg:#ffffff; --border:#d0d7de; --accent:#0969da; --panel:#f6f8fa; }
+  @media (prefers-color-scheme: dark){ :root{ --fg:#e6edf3; --muted:#8b949e; --bg:#0d1117; --border:#30363d; --accent:#4493f8; --panel:#161b22; } }
+  html,body{ margin:0; background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+  .wrap{ max-width:900px; margin:0 auto; padding:0 16px 72px; }
+  header.bar{ position:sticky; top:0; z-index:20; background:var(--bg);
+    border-bottom:1px solid var(--border); padding:12px 16px; font-size:13px; color:var(--muted); }
+  header.bar code{ color:var(--fg); background:var(--panel); padding:1px 5px; border-radius:5px; }
+  header.bar a{ color:var(--accent); text-decoration:none; } header.bar a:hover{ text-decoration:underline; }
+  h1.title{ font-size:20px; margin:22px 0 8px; }
+  .prose{ text-align:left; line-height:1.55; }
+  .prose h1,.prose h2{ border-bottom:1px solid var(--border); padding-bottom:.3em; }
+  .prose code{ background:var(--panel); border:1px solid var(--border); border-radius:5px; padding:1px 5px; font-size:.9em; }
+  .prose pre{ background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px; overflow:auto; }
+  .prose pre code{ border:0; padding:0; background:none; }
+  .prose table{ border-collapse:collapse; } .prose th,.prose td{ border:1px solid var(--border); padding:6px 10px; }
+  .prose a{ color:var(--accent); text-decoration:underline; } .prose a:visited{ color:var(--accent); }
+  .prose blockquote{ margin:12px 0; padding:2px 14px; border-left:3px solid var(--border); color:var(--muted); }
+</style>
+</head>
+<body>
+<header class="bar">jonahbeckford/ocamlearlybird &middot; <a href="index.html">index</a> &middot; <a href="high-performance.html">branch review</a> &middot; <code>dk1-high-performance</code> CLO.md</header>
+<div class="wrap">
+  <h1 class="title">CLO.md · dk1-high-performance</h1>
+  <div class="prose"><h1>Building ocamlearlybird with the dk build tool</h1>
+<p>This document explains how to build the <code>ocamlearlybird</code> OCaml debug adapter
+with <a href="https://diskuv.com/dk">dk</a>, a Windows-friendly, incremental, remote
+cacheable build system. It is
+written for two audiences, people who just want the binary (<strong>Users</strong>) and
+people who maintain this repository&#39;s dk integration (<strong>Maintainers</strong>), and it
+is meant to double as a worked, replayable example of adopting dk for an
+existing opam/dune project.</p>
+<h2>Provenance</h2>
+<p>The dk packages this build depends on have been <strong>100% AI generated and
+maintained since June 2026</strong>, and the dk build tool itself was <strong>hand built but
+AI assisted since June 2026</strong>.</p>
+<hr>
+<h2>Quick Setup</h2>
+<p>The Quick Setup path builds ocamlearlybird from source once on your machine,
+on top of a prebuilt toolchain: the OCaml compiler, Dune, opam, and the
+supporting build utilities arrive as prebuilt
+objects that dk lazily range-fetches from published Diskuv
+package releases. An existing CI-backed dk package (here
+<code>dkpkg/CommonsLang_OCaml</code>, which publishes the OCaml toolchain objects) gives
+you that partial caching for free.</p>
+<p>What you build locally in Quick Setup is ocamlearlybird&#39;s own opam dependency
+closure (lwt, dap, menhir, ppxlib, …) plus ocamlearlybird itself, each as its
+own cached dk object.</p>
+<h3>Quick Setup for Users</h3>
+<p>You need two things: install dk1, then run one object.</p>
+<p><strong>1. Install dk1</strong> (installs both <code>dk0</code> and <code>dk1</code> into <code>~/.local/bin</code>, verified
+with signify + SHA-256):</p>
+<pre><code class="language-sh">curl -fsSL https://diskuv.com/dk/install.sh | sh
+# Windows PowerShell:  irm https://diskuv.com/dk/install.ps1 | iex
+</code></pre>
+<p>(If you cloned this repository you can skip the install entirely and use the
+vendored <code>./dk1</code> launcher, which self-installs the pinned version on first run.)</p>
+<p><strong>2. Build and run the debug adapter</strong> as a single object:</p>
+<pre><code class="language-sh">./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+  -s Release.execution_abi \
+  -m bin/ocamlearlybird.exe \
+  -- --help
+</code></pre>
+<ul>
+<li><code>-s Release.execution_abi</code> selects the object built for the host you are on, so the
+same command works on Linux, macOS and Windows without editing the slot.</li>
+<li><code>-m bin/ocamlearlybird.exe</code> selects the member of the built object to execute.</li>
+<li>everything after <code>--</code> is passed to the debug adapter.</li>
+</ul>
+<h3>Quick Setup for Maintainers</h3>
+<p>Adopting dk for an existing opam/dune project is the command sequence below,
+shown for Linux. On macOS swap the slot in step 6 (<code>Release.Darwin_arm64</code>); on
+Windows use PowerShell, <code>irm https://diskuv.com/dk/vendor.ps1 | iex</code> for step 1,
+and <code>.\dk1.cmd</code> for the rest.</p>
+<pre><code class="language-sh"># 1. vendor the dk0/dk1 launchers into the repo
+curl -fsSL https://diskuv.com/dk/vendor.sh | sh
+# 2. scaffold dk.u, seed the pin table and .gitattributes, record the
+#    quickstart&#39;s declared trust statements, and import the toolchain
+./dk1 quickstart ocaml opam414
+# 3. fetch and verify the toolchain import
+./dk1 update
+# 4. adopt: solve the lock, generate the build forms, register the assets
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Adopt@1.1.14 version=1.3.6 unit=Ocamlearlybird ns=NotHackwaly_Ocamlearlybird
+# 5. recompute the checksums of the registered workspace assets
+./dk1 update
+# 6. build and run the debug adapter
+./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+  -s Release.execution_abi -m ./bin/ocamlearlybird.exe -- --help
+</code></pre>
+<p><code>ns=</code> keeps this fork&#39;s committed third-party namespace; a maintainer adopting
+their own project omits it and gets a namespace derived from the repository.</p>
+<p>What the above sequence of commands produces:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>dk0</code>, <code>dk1</code>, <code>dk0.cmd</code>, <code>dk1.cmd</code></td>
+<td>vendored self-installing launchers (step 1)</td>
+</tr>
+<tr>
+<td><code>etc/dk/t/acceptances.json</code>, <code>etc/dk/t/capabilities.json</code></td>
+<td>trust records from the quickstart&#39;s declared trust statements (step 2)</td>
+</tr>
+<tr>
+<td><code>dk.u</code></td>
+<td>workspace script: pinned imports + registered asset declarations (steps 2, 4, 5)</td>
+</tr>
+<tr>
+<td><code>dk-opam-pins.txt</code></td>
+<td>opam solve pin table, seeded by the quickstart (see below)</td>
+</tr>
+<tr>
+<td><code>dk-src/dune-workspace</code></td>
+<td>dune workspace root marker staged into the assembled source</td>
+</tr>
+<tr>
+<td><code>dk.opam-lock.jsonc</code></td>
+<td>the solved, checked-in per-slot dependency lock (step 4)</td>
+</tr>
+<tr>
+<td><code>etc/dk/v/…/Ocamlearlybird.Src.values.jsonc</code></td>
+<td>generated localized-source form (step 4)</td>
+</tr>
+<tr>
+<td><code>etc/dk/v/…/Ocamlearlybird.Closure.values.jsonc</code></td>
+<td>generated one-line closure driver (step 4)</td>
+</tr>
+<tr>
+<td><code>etc/dk/v/…/Ocamlearlybird.values.jsonc</code></td>
+<td>generated thin final form exposing <code>bin/ocamlearlybird</code> (step 4)</td>
+</tr>
+<tr>
+<td><code>etc/dk/i/*.values.json</code>, <code>etc/dk/i/dk-closure-manifest.tsv</code></td>
+<td>verified import records (steps 2, 3)</td>
+</tr>
+</tbody></table>
+<p><strong>Maintenance after adoption.</strong> After a repin or a dependency change, the
+zero-argument <code>Refresh</code> regenerates the committed driver from the stamped
+parameters, and <code>mode=check</code> validates it read-only (CI-friendly):</p>
+<pre><code class="language-sh">./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.14               # regenerate the driver
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.14 mode=solve    # re-solve the lock, then the driver
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.14 mode=check    # read-only; nonzero if a driver is stale
+./dk1 dialog CommonsLang_OCaml.Dk.OpamLock.Refresh@1.1.14 version=1.3.7 # bump earlybird across the coupled ids
+</code></pre>
+<p>After editing any workspace asset (<code>dune</code>, <code>dune-project</code>, <code>earlybird.opam</code>,
+<code>src/</code>, or the lock) run <code>./dk1 update --no-imports</code> to refresh the recorded
+checksums in <code>dk.u</code>, then rebuild, see <em>Editing a file and rebuilding</em>.</p>
+<h4>The pin table (<code>dk-opam-pins.txt</code>)</h4>
+<p>The quickstart seeds the pin table, and the
+<a href="https://diskuv.com/dk/docs/OPAM/">dk for opam users guide</a> explains its line
+forms and purpose. This repository makes one change to the seeded table: the
+<code>repo default</code> line pins the opam-repository to a single commit,</p>
+<pre><code>repo default git+https://github.com/ocaml/opam-repository.git#4f41495f12b15921ce982ac208c41b257d295515
+</code></pre>
+<p>so every maintainer and every CI run solves against the same package index and
+produces the same lock. Bump the commit deliberately, then re-solve with
+<code>Refresh mode=solve</code>.</p>
+<hr>
+<h2>High Performance</h2>
+<p>Quick Setup builds ocamlearlybird&#39;s opam closure from source on your machine
+(on top of prebuilt toolchain objects), so it compiles and links native code and
+needs a system C toolchain on <code>PATH</code>. The High Performance path publishes the
+project&#39;s <strong>own</strong> prebuilt objects in CI; on the consumer side the
+whole closure is a fetch-and-run of already-built objects.</p>
+<h3>Publishing the project&#39;s own objects: <code>prepare-version</code> + <code>distribute</code></h3>
+<p>The cache that pays off for a project&#39;s dependency packages is the project&#39;s
+<strong>own prior releases</strong> (object ids embed the project namespace, so only this
+project&#39;s published <code>Pkg.*</code> objects serve its fetches). Setting that up is a
+two-command dk workflow, wired into CI:</p>
+<p><strong>1. <code>prepare-version MAJOR.MINOR</code></strong> mints the distribution signing keys and
+records the public halves in-tree:</p>
+<pre><code class="language-sh">./dk1 prepare-version --ci github 1.3
+</code></pre>
+<p>It prompts for the <strong>library id</strong> (<code>NotHackwaly_Ocamlearlybird</code> here, the
+<code>VendorQualifier_Unit</code> base the forms already use), then generates an
+Ed25519-style keypair for the current version and the upcoming minor/major
+versions. It <strong>prints each secret key for you to store</strong> (dk does not persist
+secrets) and writes only the public keys to <code>etc/dk/d/1.3.PATCH.dist.json</code>;
+<code>--ci github</code> scaffolds the release workflow. The license (<code>MIT</code>, from <code>dk.u</code>&#39;s
+<code>## License</code>) is recorded if not already set.</p>
+<blockquote>
+<p><strong>Key custody.</strong> The secret keys are the project&#39;s release identity and must be
+generated in a secure environment and stored in a secret manager / GitHub
+Actions secret. They must never live in an ephemeral build container or a log.
+(For that reason the keys were <strong>not</strong> generated in this document&#39;s CI
+container; this section documents the workflow, and the repository owner runs
+<code>prepare-version</code> where the secrets can be custodied.)</p>
+</blockquote>
+<p><strong>2. <code>distribute --library …@VERSION</code></strong> builds the objects on a compatible CI
+builder and publishes the signed bundle (under <code>dk-dist/</code>) as a GitHub release.
+<code>VERSION</code> must be a monotonically increasing patch of the prepared <code>MAJOR.MINOR</code>
+(e.g. <code>NotHackwaly_Ocamlearlybird@1.3.YYYYMMDDhhmm</code>). Consumers then:</p>
+<pre><code class="language-sh">./dk1 restore github-l2 jonahbeckford/ocamlearlybird
+./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+  -s Release.execution_abi -m ./bin/ocamlearlybird.exe -- --help
+</code></pre>
+<p>(The <code>-m</code> member is <code>./bin/ocamlearlybird.exe</code>, the exact archive name,
+including the <code>./</code> prefix.)</p>
+<h2>Fast dev loop (opam venv)</h2>
+<p>For productivity you can get incremental <code>dune build -w</code> builds and IDE support. Set up a dk-enabled opam environment once:</p>
+<pre><code class="language-sh">./dk1 --trust-local-package NotHackwaly_Ocamlearlybird   dialog CommonsLang_OCaml.Dk.OpamLock.OpamVenv@1.1.14
+</code></pre>
+<p>(<code>--trust-local-package</code> lets the dialog resolve this workspace&#39;s own
+<code>NotHackwaly_Ocamlearlybird</code> forms; the venv is a maintainer inner loop against
+the working tree.)</p>
+<p>Then, in each shell:</p>
+<pre><code class="language-powershell">. .\opam-venv\env.ps1              # Windows PowerShell (recommended)
+# or:  source opam-venv/env.sh     # Unix / Git Bash
+dune build -w                      # incremental; only the edited module recompiles
+dune exec -- ocamlearlybird --help
+</code></pre>
+<p><strong>Parity.</strong> The venv resolves to the same locked dependency versions and the same
+<code>CommonsLang_OCaml.DkML@4.14.3</code> compiler the reproducible dk build uses (it is
+driven from <code>dk.opam-lock.jsonc</code>), so <code>dune -w</code> behavior matches the shipped
+binary, and earlybird keeps debugging bytecode compiled by that same 4.14.3
+compiler.</p>
+<p><strong>Isolation.</strong> <code>opam-venv/</code> and dune&#39;s <code>_build/</code> are invisible to both git and to
+dk&#39;s own reproducible build: the OpamVenv dialog drops a self-ignoring
+<code>.gitignore</code> and a <code>dune</code> <code>(dirs)</code> guard into <code>opam-venv/</code>, so a host
+<code>dune build</code> never scans it and <code>dk1 run-object</code> produces the identical binary.</p>
+<p><strong>Refresh.</strong> After a dependency change, regenerate the drivers and re-materialize:
+the zero-argument <code>Refresh@1.1.14</code> (see <em>Maintenance after adoption</em>) followed by
+<code>OpamVenv@1.1.14</code>.</p>
+<p><strong>Windows.</strong> <code>env.ps1</code> imports MSVC (vcvars) automatically for native linking. If
+a native relink reports <code>LNK1104: cannot open ... main.exe</code>, a previous
+<code>ocamlearlybird</code> process still holds the executable open, so stop it and rebuild.
+For a VS Code task, launch <code>code .</code> from an activated shell so it inherits the
+environment.</p>
+<h2>Editing a file and rebuilding</h2>
+<p>The supported flow after editing a source file:</p>
+<pre><code class="language-sh"># edit e.g. src/main/main.ml, then:
+./dk1 update --no-imports          # recompute workspace-asset checksums in dk.u
+./dk1 run-object NotHackwaly_Ocamlearlybird.Ocamlearlybird@1.3.6 \
+  -s Release.execution_abi -m bin/ocamlearlybird.exe -- --help
+</code></pre>
+<p>dk0/dk1 re-checksum workspace assets <strong>only on <code>update</code></strong>, so <code>dk1 update</code> is what
+turns a working-tree edit into a new content hash, so only the objects whose
+inputs actually changed rebuild, here
+the localized-source object and the local <code>earlybird</code> package object, while every
+external package object stays cached and is reused untouched.</p>
+<h2>What gets cached</h2>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>High Performance source</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>OCaml compiler toolchain (<code>CommonsLang_OCaml.DkML@4.14.3</code>)</td>
+<td>fetched prebuilt from the <code>dkpkg</code> release</td>
+</tr>
+<tr>
+<td>Dune (<code>CommonsLang_OCaml.Dune@3.23.1</code>)</td>
+<td>fetched prebuilt from the <code>dkpkg</code> release</td>
+</tr>
+<tr>
+<td>opam and the build utilities (coreutils, 7-Zip, GNU make)</td>
+<td>fetched prebuilt from the <code>dkpkg</code> releases</td>
+</tr>
+<tr>
+<td>MSYS2 runtime (Windows slots)</td>
+<td>fetched prebuilt from the <code>dkpkg</code> release</td>
+</tr>
+<tr>
+<td>The 53 locked dependency packages (lwt, dap, menhir, ppxlib, …)</td>
+<td>fetched prebuilt from this project&#39;s release</td>
+</tr>
+<tr>
+<td>The in-tree <code>earlybird</code> package</td>
+<td>fetched prebuilt from this project&#39;s release; rebuilt locally on source edits</td>
+</tr>
+<tr>
+<td>Localized source and final executable forms</td>
+<td>fetched prebuilt from this project&#39;s release; rebuilt locally on source edits</td>
+</tr>
+</tbody></table>
+<p>A dk object id is a hash of the values-file content, the <code>module@version</code>, and
+the slot, and the id embeds this project&#39;s namespace. A
+project&#39;s own prior releases are the cache that pays off for the dependency
+packages, which is what the High Performance CI path sets up.</p>
+<h2>Supported OCaml versions</h2>
+<p>This build compiles ocamlearlybird with OCaml 4.14.3 (the
+<code>CommonsLang_OCaml.DkML@4.14.3</code> toolchain). A bytecode debugger must be built
+with the same compiler version as the program it debugs, so this build debugs
+programs compiled with OCaml 4.14.x.</p>
+<p>To debug a program compiled with a different OCaml version, build ocamlearlybird
+with that compiler using upstream&#39;s opam instructions; the dk pipeline here
+builds with 4.14.3.</p>
+<h3>Why <code>dap</code> is held at <code>{&gt;= &quot;1.0.6&quot; &amp; &lt; &quot;1.1.0&quot;}</code></h3>
+<p>Upstream ocamlearlybird bumped <code>earlybird.opam</code> / <code>dune-project</code> to <code>dap {&gt;= &quot;1.1.0&quot;}</code>
+(the &quot;dap 1.71 spec&quot; change) and set the RunInTerminal field
+<code>args_can_be_interpreted_by_shell</code>. <strong>Do not re-bump <code>dap</code> here</strong> while the build
+targets the 4.14.3 toolchain: <code>dap</code> 1.1.0&#39;s dependency closure does not solve
+against it. The <code>&lt; &quot;1.1.0&quot;</code> upper bound is load-bearing on its own: this
+branch&#39;s source does not set the RunInTerminal field that <code>dap</code> 1.1.0&#39;s record
+type requires, so a plain <code>opam install</code> that selects <code>dap</code> 1.1.0 (which current
+opam-repository permits on many compilers) fails to compile
+(<code>Some record fields are undefined: args_can_be_interpreted_by_shell</code>). The
+bound makes the opam metadata state what the source can actually build against.
+Solving the closure per pinned OCaml gives:</p>
+<table>
+<thead>
+<tr>
+<th>Pinned solve</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ocaml 4.14.3</code></td>
+<td>no solution; the closure requires <code>ocaml (&lt; 4.14.3 | &gt;= 5.0)</code></td>
+</tr>
+<tr>
+<td><code>ocaml 5.5.0</code></td>
+<td>no solution; the closure requires <code>ocaml &lt; 5.4</code></td>
+</tr>
+<tr>
+<td><code>dap 1.1.0</code> on <code>ocaml 4.14.3</code></td>
+<td>no <code>dap</code> satisfies</td>
+</tr>
+</tbody></table>
+<p>So the feasible OCaml window for <code>dap</code> 1.1.0 is <code>&lt; 4.14.3</code> or <code>[5.0, 5.4)</code>, and
+<code>CommonsLang_OCaml</code> ships compiler objects only at 4.14.3 / 5.4.1 / 5.5.0. The
+<code>args_can_be_interpreted_by_shell</code> field is DAP-optional and was set to <code>None</code>
+(the absent/default behaviour), so keeping <code>dap</code> at 1.0.6 and dropping that one
+field is behaviour-neutral.</p>
+</div>
+</div>
+</body>
+</html>
